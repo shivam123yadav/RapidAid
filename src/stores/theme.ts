@@ -1,0 +1,58 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { ThemeMode } from '../types';
+
+interface ThemeState {
+  mode: ThemeMode;
+  resolved: 'light' | 'dark';
+  setMode: (mode: ThemeMode) => void;
+  initTheme: () => void;
+}
+
+function getSystemTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
+  if (mode === 'system') return getSystemTheme();
+  return mode;
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set, get) => ({
+      mode: 'system',
+      resolved: resolveTheme('system'),
+      setMode: (mode) => {
+        const resolved = resolveTheme(mode);
+        set({ mode, resolved });
+        applyTheme(resolved);
+      },
+      initTheme: () => {
+        const { mode } = get();
+        const resolved = resolveTheme(mode);
+        set({ resolved });
+        applyTheme(resolved);
+      },
+    }),
+    { name: 'rapidaid-theme', partialize: (state) => ({ mode: state.mode }) }
+  )
+);
+
+function applyTheme(theme: 'light' | 'dark') {
+  const root = document.documentElement;
+  if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+}
+
+export function useTheme() {
+  return useThemeStore((s) => ({
+    mode: s.mode,
+    resolved: s.resolved,
+    setMode: s.setMode,
+  }));
+}
