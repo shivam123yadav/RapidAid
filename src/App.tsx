@@ -48,15 +48,15 @@ function PageLoader() {
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ErrorBoundary>
-      <AppShell>
+    <AppShell>
+      <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
           {children}
         </Suspense>
-        <CommandPalette />
-        <NotificationDrawer />
-      </AppShell>
-    </ErrorBoundary>
+      </ErrorBoundary>
+      <CommandPalette />
+      <NotificationDrawer />
+    </AppShell>
   );
 }
 
@@ -82,34 +82,36 @@ function ThemeInitializer() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ThemeInitializer />
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<LandingPage />} />
-          
-          {/* App Routes */}
-          <Route path="/command-center" element={<AppLayout><CommandCenterPage /></AppLayout>} />
-          <Route path="/emergencies" element={<AppLayout><EmergenciesPage /></AppLayout>} />
-          <Route path="/emergencies/:id" element={<AppLayout><EmergencyDetailPage /></AppLayout>} />
-          <Route path="/ambulances" element={<AppLayout><AmbulancesPage /></AppLayout>} />
-          <Route path="/hospitals" element={<AppLayout><HospitalsPage /></AppLayout>} />
-          <Route path="/tracking" element={<AppLayout><TrackingPage /></AppLayout>} />
-          <Route path="/ai-vision" element={<AppLayout><AIVisionPage /></AppLayout>} />
-          <Route path="/dispatch" element={<AppLayout><DispatchPage /></AppLayout>} />
-          <Route path="/voice" element={<AppLayout><VoicePage /></AppLayout>} />
-          <Route path="/analytics" element={<AppLayout><AnalyticsPage /></AppLayout>} />
-          <Route path="/green-corridor" element={<AppLayout><GreenCorridorPage /></AppLayout>} />
-          <Route path="/simulations" element={<AppLayout><SimulationsPage /></AppLayout>} />
-          <Route path="/alerts" element={<AppLayout><AlertsPage /></AppLayout>} />
-          <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
-          <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
-          
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ThemeInitializer />
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<LandingPage />} />
+            
+            {/* App Routes */}
+            <Route path="/command-center" element={<AppLayout><CommandCenterPage /></AppLayout>} />
+            <Route path="/emergencies" element={<AppLayout><EmergenciesPage /></AppLayout>} />
+            <Route path="/emergencies/:id" element={<AppLayout><EmergencyDetailPage /></AppLayout>} />
+            <Route path="/ambulances" element={<AppLayout><AmbulancesPage /></AppLayout>} />
+            <Route path="/hospitals" element={<AppLayout><HospitalsPage /></AppLayout>} />
+            <Route path="/tracking" element={<AppLayout><TrackingPage /></AppLayout>} />
+            <Route path="/ai-vision" element={<AppLayout><AIVisionPage /></AppLayout>} />
+            <Route path="/dispatch" element={<AppLayout><DispatchPage /></AppLayout>} />
+            <Route path="/voice" element={<AppLayout><VoicePage /></AppLayout>} />
+            <Route path="/analytics" element={<AppLayout><AnalyticsPage /></AppLayout>} />
+            <Route path="/green-corridor" element={<AppLayout><GreenCorridorPage /></AppLayout>} />
+            <Route path="/simulations" element={<AppLayout><SimulationsPage /></AppLayout>} />
+            <Route path="/alerts" element={<AppLayout><AlertsPage /></AppLayout>} />
+            <Route path="/audit" element={<AppLayout><AuditPage /></AppLayout>} />
+            <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+            
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

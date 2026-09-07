@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useUIStore } from '../../stores/ui';
 import {
-  Activity, AlertTriangle, Truck, BarChart3, Building2, Command,
-  Ear, Eye, Globe, Heart, LayoutDashboard, MapPin, Menu, Mic,
+  AlertTriangle, Truck, BarChart3, Building2,
+  Eye, Globe, Heart, LayoutDashboard, MapPin, Menu, Mic,
   Radio, Settings, Shield, Siren, TrafficCone, X, Bell, Search,
-  ChevronDown, ChevronRight, LogOut, User, Sun, Moon, Monitor
+  ChevronDown, ChevronRight, Sun, Moon, Monitor
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';

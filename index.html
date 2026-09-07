@@ -20,9 +20,8 @@
           var mode = stored.state && stored.state.mode ? stored.state.mode : 'system';
           var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) document.documentElement.classList.add('dark');
-          else document.documentElement.classList.add('light');
         } catch(e) {
-          document.documentElement.classList.add('light');
+          // Default to light mode (no class needed)
         }
       })();
     </script>
