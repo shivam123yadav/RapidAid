@@ -6,11 +6,13 @@ import {
   AlertTriangle, Truck, BarChart3, Building2,
   Eye, Globe, Heart, LayoutDashboard, MapPin, Menu, Mic,
   Radio, Settings, Shield, Siren, TrafficCone, X, Bell, Search,
-  ChevronDown, ChevronRight, Sun, Moon, Monitor
+  ChevronDown, ChevronRight, Sun, Moon, Monitor, LogOut
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useTheme } from '../../stores/theme';
+import { useAuthStore } from '../../stores/auth';
+import { useNavigate } from 'react-router-dom';
 
 interface NavItem {
   label: string;
@@ -59,6 +61,49 @@ const navGroups: NavGroup[] = [
     ],
   },
 ];
+
+function SidebarFooter({ collapsed }: { collapsed: boolean }) {
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+
+  return (
+    <div className={cn('border-t border-[var(--border)] p-3', collapsed && 'px-2')}>
+      {!collapsed ? (
+        <div className="flex items-center gap-3 rounded-lg p-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+            <p className="text-xs text-[var(--muted-foreground)]">{user?.role || 'USER'}</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
+            <LogOut size={16} />
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
+            {initials}
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
+            <LogOut size={16} />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen, setSidebarMobileOpen, toggleSidebar } = useUIStore();
@@ -127,25 +172,7 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className={cn('border-t border-[var(--border)] p-3', sidebarCollapsed && 'px-2')}>
-          {!sidebarCollapsed ? (
-            <div className="flex items-center gap-3 rounded-lg p-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-                DK
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Dispatcher Khan</p>
-                <p className="text-xs text-[var(--muted-foreground)]">DISPATCHER</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-                DK
-              </div>
-            </div>
-          )}
-        </div>
+        <SidebarFooter collapsed={sidebarCollapsed} />
       </aside>
     </>
   );

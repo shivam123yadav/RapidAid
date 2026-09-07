@@ -5,6 +5,7 @@ import { AppShell } from './components/layout/AppShell';
 import { CommandPalette, NotificationDrawer } from './components/layout/Overlays';
 import { useThemeStore } from './stores/theme';
 import { LandingPage } from './pages/Landing';
+import { LoginPage } from './pages/Login';
 import { Skeleton } from './components/ui/skeleton';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -23,6 +24,7 @@ const AlertsPage = lazy(() => import('./pages/Alerts').then(m => ({ default: m.A
 const AuditPage = lazy(() => import('./pages/Audit').then(m => ({ default: m.AuditPage })));
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.SettingsPage })));
 const SimulationsPage = lazy(() => import('./pages/Simulations').then(m => ({ default: m.SimulationsPage })));
+const LoginPageLazy = lazy(() => import('./pages/Login').then(m => ({ default: m.LoginPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,12 +88,12 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <ThemeInitializer />
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<LandingPage />} />
-            
-            {/* App Routes */}
-            <Route path="/command-center" element={<AppLayout><CommandCenterPage /></AppLayout>} />
+        <Routes>
+          {/* Public */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPageLazy /></Suspense>} />
+          
+          {/* App Routes */}            <Route path="/command-center" element={<AppLayout><CommandCenterPage /></AppLayout>} />
             <Route path="/emergencies" element={<AppLayout><EmergenciesPage /></AppLayout>} />
             <Route path="/emergencies/:id" element={<AppLayout><EmergencyDetailPage /></AppLayout>} />
             <Route path="/ambulances" element={<AppLayout><AmbulancesPage /></AppLayout>} />
