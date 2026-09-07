@@ -2,13 +2,17 @@ import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent } from '../components/ui/card';
+import { useTheme } from '../stores/theme';
+import { cn } from '../lib/utils';
 import {
   Heart, Siren, Eye, Truck, Building2, Brain, MapPin,
   Shield, Clock, Zap, Activity, Radio, Mic, BarChart3,
-  ArrowRight, CheckCircle2, Globe, TrafficCone
+  ArrowRight, CheckCircle2, Globe, TrafficCone, Sun, Moon, Monitor
 } from 'lucide-react';
 
 export function LandingPage() {
+  const { mode, setMode } = useTheme();
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Navigation */}
@@ -26,6 +30,39 @@ export function LandingPage() {
             <a href="#intelligence" className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">Intelligence</a>
           </div>
           <div className="flex items-center gap-3">
+            {/* Theme Toggle */}
+            <div className="flex items-center gap-1 border border-[var(--border)] rounded-lg p-1">
+              <button
+                onClick={() => setMode('light')}
+                className={cn(
+                  'rounded-md p-1.5 transition-colors',
+                  mode === 'light' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                )}
+                title="Light Mode"
+              >
+                <Sun size={14} />
+              </button>
+              <button
+                onClick={() => setMode('dark')}
+                className={cn(
+                  'rounded-md p-1.5 transition-colors',
+                  mode === 'dark' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                )}
+                title="Dark Mode"
+              >
+                <Moon size={14} />
+              </button>
+              <button
+                onClick={() => setMode('system')}
+                className={cn(
+                  'rounded-md p-1.5 transition-colors',
+                  mode === 'system' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                )}
+                title="System Theme"
+              >
+                <Monitor size={14} />
+              </button>
+            </div>
             <Link to="/command-center">
               <Button variant="outline" size="sm">Command Center</Button>
             </Link>

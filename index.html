@@ -12,6 +12,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      // Prevent flash of incorrect theme
+      (function() {
+        try {
+          var stored = JSON.parse(localStorage.getItem('rapidaid-theme') || '{}');
+          var mode = stored.state && stored.state.mode ? stored.state.mode : 'system';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+          else document.documentElement.classList.add('light');
+        } catch(e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

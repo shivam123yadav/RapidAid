@@ -6,7 +6,7 @@ import {
   Activity, AlertTriangle, Truck, BarChart3, Building2, Command,
   Ear, Eye, Globe, Heart, LayoutDashboard, MapPin, Menu, Mic,
   Radio, Settings, Shield, Siren, TrafficCone, X, Bell, Search,
-  ChevronDown, ChevronRight, LogOut, User
+  ChevronDown, ChevronRight, LogOut, User, Sun, Moon, Monitor
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -200,18 +200,36 @@ export function Header() {
         </Button>
 
         <div className="hidden sm:flex items-center gap-1 border border-[var(--border)] rounded-lg p-1">
-          {(['light', 'dark', 'system'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={cn(
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors capitalize',
-                mode === m ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-              )}
-            >
-              {m}
-            </button>
-          ))}
+          <button
+            onClick={() => setMode('light')}
+            className={cn(
+              'rounded-md p-1.5 transition-colors',
+              mode === 'light' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+            )}
+            title="Light Mode"
+          >
+            <Sun size={14} />
+          </button>
+          <button
+            onClick={() => setMode('dark')}
+            className={cn(
+              'rounded-md p-1.5 transition-colors',
+              mode === 'dark' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+            )}
+            title="Dark Mode"
+          >
+            <Moon size={14} />
+          </button>
+          <button
+            onClick={() => setMode('system')}
+            className={cn(
+              'rounded-md p-1.5 transition-colors',
+              mode === 'system' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+            )}
+            title="System Theme"
+          >
+            <Monitor size={14} />
+          </button>
         </div>
 
         <div className="hidden md:flex items-center gap-2 ml-2 pl-2 border-l border-[var(--border)]">

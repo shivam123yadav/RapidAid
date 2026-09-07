@@ -6,6 +6,7 @@ import { CommandPalette, NotificationDrawer } from './components/layout/Overlays
 import { useThemeStore } from './stores/theme';
 import { LandingPage } from './pages/Landing';
 import { Skeleton } from './components/ui/skeleton';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const CommandCenterPage = lazy(() => import('./pages/CommandCenter').then(m => ({ default: m.CommandCenterPage })));
 const EmergenciesPage = lazy(() => import('./pages/Emergencies').then(m => ({ default: m.EmergenciesPage })));
@@ -47,13 +48,15 @@ function PageLoader() {
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppShell>
-      <Suspense fallback={<PageLoader />}>
-        {children}
-      </Suspense>
-      <CommandPalette />
-      <NotificationDrawer />
-    </AppShell>
+    <ErrorBoundary>
+      <AppShell>
+        <Suspense fallback={<PageLoader />}>
+          {children}
+        </Suspense>
+        <CommandPalette />
+        <NotificationDrawer />
+      </AppShell>
+    </ErrorBoundary>
   );
 }
 

@@ -10,7 +10,7 @@ interface ThemeState {
 }
 
 function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
@@ -19,11 +19,23 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   return mode;
 }
 
+function applyTheme(theme: 'light' | 'dark') {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (theme === 'dark') {
+    root.classList.add('dark');
+    root.classList.remove('light');
+  } else {
+    root.classList.add('light');
+    root.classList.remove('dark');
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       mode: 'system',
-      resolved: resolveTheme('system'),
+      resolved: getSystemTheme(),
       setMode: (mode) => {
         const resolved = resolveTheme(mode);
         set({ mode, resolved });
@@ -36,18 +48,18 @@ export const useThemeStore = create<ThemeState>()(
         applyTheme(resolved);
       },
     }),
-    { name: 'rapidaid-theme', partialize: (state) => ({ mode: state.mode }) }
+    { 
+      name: 'rapidaid-theme', 
+      partialize: (state) => ({ mode: state.mode }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const resolved = resolveTheme(state.mode);
+          applyTheme(resolved);
+        }
+      }
+    }
   )
 );
-
-function applyTheme(theme: 'light' | 'dark') {
-  const root = document.documentElement;
-  if (theme === 'dark') {
-    root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
-  }
-}
 
 export function useTheme() {
   return useThemeStore((s) => ({

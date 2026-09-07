@@ -6,7 +6,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { formatTime } from '../lib/utils';
 import { Siren, Truck, Building2, Clock, AlertTriangle, Activity, MapPin } from 'lucide-react';
 import { CommandCenterMap } from '../components/maps/CommandCenterMap';
-import type { Emergency, EmergencyPriority, Ambulance } from '../types';
+import type { Emergency, EmergencyPriority, Ambulance, Hospital } from '../types';
 
 function MetricCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string | number; accent?: string }) {
   return (
@@ -57,8 +57,8 @@ export function CommandCenterPage() {
 
   const activeEmergencies: Emergency[] = (emergencies || []).filter((e: Emergency) => e.status !== 'COMPLETED' && e.status !== 'CANCELLED');
   const criticalEmergencies = activeEmergencies.filter((e: Emergency) => e.priority === 'CRITICAL');
-  const availableAmbulances = (ambulances || []).filter((a: Ambulance) => a.status === 'AVAILABLE');
-  const activeAmbulances = (ambulances || []).filter((a: Ambulance) => a.status !== 'AVAILABLE' && a.status !== 'MAINTENANCE' && a.status !== 'OFFLINE');
+  const availableAmbulances = ((ambulances || []) as Ambulance[]).filter((a: Ambulance) => a.status === 'AVAILABLE');
+  const activeAmbulances = ((ambulances || []) as Ambulance[]).filter((a: Ambulance) => a.status !== 'AVAILABLE' && a.status !== 'MAINTENANCE' && a.status !== 'OFFLINE');
   const priorityOrder: Record<EmergencyPriority, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
   const mostCritical = [...activeEmergencies].sort((a: Emergency, b: Emergency) => priorityOrder[a.priority] - priorityOrder[b.priority])[0];
 
@@ -149,8 +149,8 @@ export function CommandCenterPage() {
               <div className="h-[450px]">
                 <CommandCenterMap
                   emergencies={activeEmergencies}
-                  ambulances={ambulances || []}
-                  hospitals={hospitals || []}
+                  ambulances={(ambulances || []) as Ambulance[]}
+                  hospitals={(hospitals || []) as Hospital[]}
                 />
               </div>
             </CardContent>
