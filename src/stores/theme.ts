@@ -29,6 +29,26 @@ function applyTheme(theme: 'light' | 'dark') {
   }
 }
 
+// Apply theme immediately from localStorage before React loads
+function applyStoredTheme() {
+  try {
+    const stored = localStorage.getItem('rapidaid-theme');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const mode = parsed?.state?.mode || 'system';
+      const resolved = resolveTheme(mode);
+      applyTheme(resolved);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Run immediately on module load
+if (typeof window !== 'undefined') {
+  applyStoredTheme();
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
@@ -42,27 +62,24 @@ export const useThemeStore = create<ThemeState>()(
       initTheme: () => {
         const { mode } = get();
         const resolved = resolveTheme(mode);
-        set({ resolved });
+        // Only update if actually different to avoid unnecessary re-renders
+        const current = get();
+        if (current.resolved !== resolved) {
+          set({ resolved });
+        }
         applyTheme(resolved);
       },
     }),
-    { 
-      name: 'rapidaid-theme', 
+    {
+      name: 'rapidaid-theme',
       partialize: (state) => ({ mode: state.mode }),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          const resolved = resolveTheme(state.mode);
-          applyTheme(resolved);
-        }
-      }
     }
   )
 );
 
 export function useTheme() {
-  return useThemeStore((s) => ({
-    mode: s.mode,
-    resolved: s.resolved,
-    setMode: s.setMode,
-  }));
+  const mode = useThemeStore((s) => s.mode);
+  const resolved = useThemeStore((s) => s.resolved);
+  const setMode = useThemeStore((s) => s.setMode);
+  return { mode, resolved, setMode };
 }

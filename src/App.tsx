@@ -61,21 +61,21 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 function ThemeInitializer() {
-  const initTheme = useThemeStore((s) => s.initTheme);
-  
   useEffect(() => {
-    initTheme();
+    // Initialize theme on mount
+    useThemeStore.getState().initTheme();
     
+    // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {
       const mode = useThemeStore.getState().mode;
       if (mode === 'system') {
-        initTheme();
+        useThemeStore.getState().initTheme();
       }
     };
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
-  }, [initTheme]);
+  }, []);
 
   return null;
 }
