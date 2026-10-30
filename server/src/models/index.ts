@@ -4,6 +4,7 @@ export { RolePolicy } from './RolePolicy.js';
 
 export {
   Emergency,
+  ensureEmergencyCollection,
   ensureEmergencyIdempotencyIndex,
   isEmergencyIdempotencyIndexReady,
   setEmergencyIdempotencyIndexReady,

@@ -136,6 +136,63 @@ describe('Milestone 2.1: Operational Hardening', () => {
       expect(isEmergencyIdempotencyIndexReady()).toBe(true);
     });
 
+    it('handles missing collection on a fresh database by safely creating collection and index', async () => {
+      // Simulate fresh database where emergencies collection does not exist yet
+      try {
+        await Emergency.collection.drop();
+      } catch {
+        // Ignored if collection didn't exist
+      }
+
+      // Verify collection does not exist
+      const collName = Emergency.collection.collectionName;
+      const collectionsBefore = await Emergency.db!.db!.listCollections({ name: collName }).toArray();
+      expect(collectionsBefore.length).toBe(0);
+
+      // Startup initialization must succeed without 'ns does not exist' error
+      const result = await ensureEmergencyIdempotencyIndex();
+      expect(result.ready).toBe(true);
+      expect(result.status).toBe('CREATED');
+      expect(isEmergencyIdempotencyIndexReady()).toBe(true);
+
+      // Verify collection now exists and index is verified active
+      const collectionsAfter = await Emergency.db!.db!.listCollections({ name: collName }).toArray();
+      expect(collectionsAfter.length).toBe(1);
+
+      const indexes = await Emergency.collection.indexes();
+      const verified = indexes.find(
+        (idx) => idx.key && (idx.key as Record<string, unknown>).idempotencyKey === 1,
+      );
+      expect(verified).toBeDefined();
+      expect(verified?.unique).toBe(true);
+      expect(verified?.sparse).toBe(true);
+    });
+
+    it('repeated and concurrent initialization safely maintains readiness and returns EXISTS', async () => {
+      // 1. Existing collection with required index returns EXISTS
+      const res1 = await ensureEmergencyIdempotencyIndex();
+      expect(res1.ready).toBe(true);
+      expect(res1.status).toBe('EXISTS');
+
+      const res2 = await ensureEmergencyIdempotencyIndex();
+      expect(res2.ready).toBe(true);
+      expect(res2.status).toBe('EXISTS');
+      expect(isEmergencyIdempotencyIndexReady()).toBe(true);
+
+      // 2. Concurrent startup simulation (multiple instances/workers booting at once)
+      const concurrentResults = await Promise.all([
+        ensureEmergencyIdempotencyIndex(),
+        ensureEmergencyIdempotencyIndex(),
+        ensureEmergencyIdempotencyIndex(),
+      ]);
+
+      for (const res of concurrentResults) {
+        expect(res.ready).toBe(true);
+        expect(['EXISTS', 'CREATED']).toContain(res.status);
+      }
+      expect(isEmergencyIdempotencyIndexReady()).toBe(true);
+    });
+
     it('index creation failures are logged and reflected in readiness behavior', async () => {
       try {
         await Emergency.collection.dropIndex('idempotencyKey_1');

@@ -13,7 +13,7 @@
 import mongoose from 'mongoose';
 import { connectDB, disconnectDB } from '../src/db/connection.js';
 import { logger } from '../src/config/logger.js';
-import { Emergency } from '../src/models/Emergency.js';
+import { Emergency, ensureEmergencyCollection } from '../src/models/Emergency.js';
 
 export const BACKUP_COLLECTION_NAME = 'emergency_idempotency_backup';
 export const INDEX_NAME = 'idempotencyKey_1';
@@ -48,6 +48,7 @@ export interface InspectionReport {
  * Never modifies any documents.
  */
 export async function inspectDuplicates(): Promise<InspectionReport> {
+  await ensureEmergencyCollection();
   const indexes = await Emergency.collection.indexes();
   const existingIndex = indexes.find(
     (idx) => idx.key && (idx.key as Record<string, unknown>).idempotencyKey === 1,
@@ -200,6 +201,7 @@ export async function verifyIndex(): Promise<{
   remainingDuplicates: number;
   message: string;
 }> {
+  await ensureEmergencyCollection();
   const indexes = await Emergency.collection.indexes();
   const existing = indexes.find(
     (idx) => idx.key && (idx.key as Record<string, unknown>).idempotencyKey === 1,
