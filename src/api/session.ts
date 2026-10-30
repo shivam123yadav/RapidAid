@@ -30,7 +30,11 @@ export function resolveApiBase(rawUrl?: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
-const API_BASE = resolveApiBase(import.meta.env.VITE_API_URL as string | undefined);
+const rawEnvBase =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+  (import.meta.env.VITE_API_URL as string | undefined);
+
+const API_BASE = resolveApiBase(rawEnvBase);
 
 let accessToken: string | null = null;
 let refreshInFlight: Promise<string | null> | null = null;

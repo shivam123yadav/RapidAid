@@ -1,0 +1,74 @@
+# ==============================================================================
+# RapidAid Render Blueprint Configuration (render.yaml)
+# ==============================================================================
+# Declares both the Node.js Express Web Service (Backend) and the
+# React/Vite Static Site (Frontend) with automated SPA rewrites and health checks.
+# ==============================================================================
+
+services:
+  # ── Backend: RapidAid Express API Web Service ──────────────────────────────
+  - type: web
+    name: rapidaid-api
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: SEED_IF_EMPTY
+        value: "false"
+      - key: AUTOMATED_DISPATCH_ENABLED
+        value: "false"
+      - key: RATE_LIMIT_DISABLED
+        value: "false"
+      - key: LOG_LEVEL
+        value: info
+      # Production Database Connection String (MongoDB Atlas)
+      # Must be set manually in Render Dashboard; never use rapidaid_phase1_test
+      - key: MONGODB_URI
+        sync: false
+      # Cryptographic Signing Secrets (Render generates 256-bit cryptographically secure strings)
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "7"
+      # CORS: Must be set to the deployed frontend static site origin (e.g. https://rapidaid.onrender.com)
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: COOKIE_SAME_SITE
+        value: lax
+      # Routing Configuration (default fallback safely handles road calculation)
+      - key: ROUTING_PROVIDER_TYPE
+        value: osrm
+      - key: ROUTING_PROVIDER_URL
+        value: https://router.project-osrm.org
+
+  # ── Frontend: RapidAid React/Vite Static Site ──────────────────────────────
+  - type: static
+    name: rapidaid-web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      # Single Page Application (SPA) rewrite: forwards client routes to index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Absolute or relative API URL pointing to the deployed rapidaid-api Web Service
+      # e.g., https://rapidaid-api.onrender.com or /api (if using custom reverse proxy)
+      - key: VITE_API_BASE_URL
+        sync: false
