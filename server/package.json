@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "RapidAid backend — Express + TypeScript + MongoDB",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",

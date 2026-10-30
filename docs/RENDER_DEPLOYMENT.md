@@ -42,7 +42,7 @@ If configuring services manually via the Render Dashboard:
 | **Root Directory** | `server` | **Mandatory**: Backend lives in the `server` directory |
 | **Runtime** | **Node** | Node.js 20 or 22 |
 | **Plan** | **Free ($0/mo)** | Supported on Render Web Services |
-| **Build Command** | `npm ci && npm run build` | Compiles TypeScript into `dist/` |
+| **Build Command** | `npm ci --include=dev && npm run build` | Installs devDependencies (TypeScript & @types/node) despite `NODE_ENV=production`, then compiles into `dist/` |
 | **Start Command** | `npm start` | Executes `node dist/index.js` |
 | **Health Check Path**| `/healthz` | Unauthenticated orchestrator liveness probe |
 
