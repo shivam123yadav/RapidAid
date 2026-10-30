@@ -1,0 +1,77 @@
+# RapidAid V2 — Production Docker Compose Overlay
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.docker config
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.docker up -d
+#
+# ARCHITECTURAL PROPERTIES & HOST SIZING GUIDANCE:
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Port Ingress Lockdown:
+#    - MongoDB and Express backend are strictly internal services on 'rapidaid-network'.
+#      Neither publishes host ports. Only frontend (Nginx reverse-proxy) binds ports 80/443.
+# 2. Bounded Log Rotation:
+#    - All services configure json-file driver with max-size 10MB and max-file 3 (capped at 30MB).
+#      This prevents container logs from silently consuming disk on small cloud instances.
+# 3. Non-Root Execution:
+#    - Backend executes as non-root user 'node' (UID 1000) defined in server/Dockerfile.
+# 4. Host Sizing & Memory Limits:
+#    - On a 1 GB RAM cloud host (e.g. AWS t3.micro or Lightsail $5/mo VPS):
+#        * OS kernel, systemd, SSH, and Docker daemon consume ~250MB–350MB baseline.
+#        * Available container RAM is restricted to ~650MB–750MB.
+#        * Simultaneous spikes (WiredTiger cache + 16MB Express payloads) on an unswapped
+#          1 GB host will trigger the Linux OOM killer.
+#        * Operators MUST configure a 1GB–2GB swapfile if running all 3 containers on 1 GB RAM.
+#    - On a 2 GB RAM host (e.g. AWS t4g.small or Lightsail $10/mo), the default limits below
+#      fit comfortably without memory contention.
+#    - Alternatively, offloading database persistence to MongoDB Atlas M0 (Free Tier) eliminates
+#      the local MongoDB memory footprint entirely.
+
+services:
+  mongodb:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "${MONGO_CPUS_LIMIT:-1.0}"
+          memory: "${MONGO_MEM_LIMIT:-384m}"
+        reservations:
+          memory: "${MONGO_MEM_RESERVATION:-128m}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_CPUS_LIMIT:-1.0}"
+          memory: "${BACKEND_MEM_LIMIT:-384m}"
+        reservations:
+          memory: "${BACKEND_MEM_RESERVATION:-128m}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_SSL_PORT:-443}:443"
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPUS_LIMIT:-0.5}"
+          memory: "${FRONTEND_MEM_LIMIT:-64m}"
+        reservations:
+          memory: "${FRONTEND_MEM_RESERVATION:-32m}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+

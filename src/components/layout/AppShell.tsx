@@ -1,74 +1,42 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Bell,
+  ChevronRight,
+  Command,
+  Heart,
+  LogOut,
+  MailWarning,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  ShieldCheck,
+  WifiOff,
+  X,
+} from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useUIStore } from '../../stores/ui';
-import {
-  AlertTriangle, Truck, BarChart3, Building2,
-  Eye, Globe, Heart, LayoutDashboard, MapPin, Menu, Mic,
-  Radio, Settings, Shield, Siren, TrafficCone, X, Bell, Search,
-  ChevronDown, ChevronRight, Sun, Moon, Monitor, LogOut
-} from 'lucide-react';
-import { Button } from '../ui/button';
+import { api } from '../../api/client';
+import { Button, buttonVariants } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { useTheme } from '../../stores/theme';
+import { ThemeButton } from '../theme/ThemeButton';
 import { useAuthStore } from '../../stores/auth';
-import { useNavigate } from 'react-router-dom';
+import { ROLE_LABELS, navGroupsFor, normalizePath, pageTitleFor } from '../../lib/navigation';
+import { PageTransition } from '../motion/PageTransition';
 
-interface NavItem {
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-}
-
-interface NavGroup {
-  title: string;
-  items: NavItem[];
-}
-
-const navGroups: NavGroup[] = [
-  {
-    title: 'Operations',
-    items: [
-      { label: 'Command Center', path: '/command-center', icon: <LayoutDashboard size={18} /> },
-      { label: 'Emergencies', path: '/emergencies', icon: <Siren size={18} /> },
-      { label: 'Ambulances', path: '/ambulances', icon: <Truck size={18} /> },
-      { label: 'Hospitals', path: '/hospitals', icon: <Building2 size={18} /> },
-      { label: 'Live Tracking', path: '/tracking', icon: <MapPin size={18} /> },
-    ],
-  },
-  {
-    title: 'Intelligence',
-    items: [
-      { label: 'AI Vision', path: '/ai-vision', icon: <Eye size={18} /> },
-      { label: 'Dispatch Intel', path: '/dispatch', icon: <Radio size={18} /> },
-      { label: 'Voice Reports', path: '/voice', icon: <Mic size={18} /> },
-    ],
-  },
-  {
-    title: 'Analytics',
-    items: [
-      { label: 'Analytics', path: '/analytics', icon: <BarChart3 size={18} /> },
-      { label: 'Green Corridor', path: '/green-corridor', icon: <TrafficCone size={18} /> },
-      { label: 'Simulations', path: '/simulations', icon: <Globe size={18} /> },
-    ],
-  },
-  {
-    title: 'System',
-    items: [
-      { label: 'Alerts', path: '/alerts', icon: <AlertTriangle size={18} /> },
-      { label: 'Audit', path: '/audit', icon: <Shield size={18} /> },
-      { label: 'Settings', path: '/settings', icon: <Settings size={18} /> },
-    ],
-  },
-];
+// Sidebar structure, page titles and per-role audiences live in
+// src/lib/navigation.ts so the sidebar, the route guard and the command
+// palette always agree on who may open what.
 
 function SidebarFooter({ collapsed }: { collapsed: boolean }) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -76,31 +44,47 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
 
-  return (
-    <div className={cn('border-t border-[var(--border)] p-3', collapsed && 'px-2')}>
-      {!collapsed ? (
-        <div className="flex items-center gap-3 rounded-lg p-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-            <p className="text-xs text-[var(--muted-foreground)]">{user?.role || 'USER'}</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-            <LogOut size={16} />
-          </Button>
-        </div>
-      ) : (
+  if (collapsed) {
+    return (
+      <div className="border-t border-[var(--border)] p-2">
         <div className="flex flex-col items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-xs font-bold text-[var(--primary)]"
+            title={user ? `${user.name} · ${ROLE_LABELS[user.role]}` : undefined}
+          >
             {initials}
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-            <LogOut size={16} />
+          <Button variant="ghost" size="iconSm" onClick={handleLogout} title="Sign out" aria-label="Sign out">
+            <LogOut size={15} />
           </Button>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-[var(--border)] p-3">
+      <div className="mb-3 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_55%,transparent)] px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-[var(--muted-foreground)]">
+          <ShieldCheck size={13} className="text-[var(--success)]" />
+          Role-scoped workspace
+        </div>
+        <p className="mt-1 truncate text-xs font-semibold text-[var(--foreground)]">
+          {user?.role ? ROLE_LABELS[user.role] : 'Not signed in'}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--muted)]">
+        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-xs font-bold text-[var(--primary)]">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
+          <p className="truncate text-xs text-[var(--muted-foreground)]">{user?.email || 'RapidAid network'}</p>
+        </div>
+        <Button variant="ghost" size="iconSm" onClick={handleLogout} title="Sign out" aria-label="Sign out">
+          <LogOut size={15} />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -108,160 +92,282 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
 export function Sidebar() {
   const { sidebarCollapsed, sidebarMobileOpen, setSidebarMobileOpen, toggleSidebar } = useUIStore();
   const location = useLocation();
+  const user = useAuthStore((state) => state.user);
+  // Only the pages this role may enter are listed (see lib/navigation.ts).
+  const groups = navGroupsFor(user?.role, user?.permissions);
+  const activePath = normalizePath(location.pathname);
 
   return (
     <>
       {/* Mobile overlay */}
       {sidebarMobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarMobileOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-[2px] lg:hidden"
+          onClick={() => setSidebarMobileOpen(false)}
+          aria-hidden="true"
+        />
       )}
 
-      <aside className={cn(
-        'fixed top-0 left-0 z-50 flex h-full flex-col border-r border-[var(--border)] bg-[var(--card)] transition-all duration-300',
-        sidebarCollapsed ? 'w-16' : 'w-64',
-        sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full',
-        'lg:translate-x-0'
-      )}>
+      <aside
+        className={cn(
+          'surface-noise fixed left-0 top-0 z-50 flex h-full flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--sidebar)] transition-[width,transform] duration-300',
+          sidebarCollapsed ? 'w-[4.75rem]' : 'w-[17.5rem]',
+          sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full',
+          'lg:translate-x-0',
+        )}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(120%_100%_at_20%_0%,color-mix(in_srgb,var(--primary)_14%,transparent),transparent_70%)]"
+        />
+
         {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b border-[var(--border)] px-4">
-          <div className={cn('flex items-center gap-2', sidebarCollapsed && 'justify-center w-full')}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]">
-              <Heart size={16} className="text-white" />
+        <div
+          className={cn(
+            'relative flex h-16 items-center border-b border-[var(--border)] px-3.5',
+            sidebarCollapsed ? 'justify-center' : 'justify-between',
+          )}
+        >
+          <Link
+            to="/"
+            className={cn('flex min-w-0 items-center gap-2.5', sidebarCollapsed && 'justify-center')}
+            aria-label="RapidAid home"
+          >
+            <div className="relative flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded-xl bg-[var(--primary)] shadow-[0_8px_24px_-10px_var(--primary)]">
+              <Heart size={17} className="text-[var(--primary-foreground)]" />
+              <span className="absolute inset-x-0 top-0 h-px bg-white/30" />
             </div>
             {!sidebarCollapsed && (
-              <span className="text-lg font-bold tracking-tight">RapidAid</span>
+              <span className="min-w-0">
+                <span className="block truncate font-display text-[1.05rem] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                  RapidAid
+                </span>
+                <span className="block truncate font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+                  Response network
+                </span>
+              </span>
             )}
-          </div>
-          <Button variant="ghost" size="icon" className="hidden lg:flex" onClick={toggleSidebar}>
-            {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} className="rotate-90" />}
+          </Link>
+
+          <Button
+            variant="ghost"
+            size="iconSm"
+            className={cn('hidden text-[var(--muted-foreground)] lg:flex', sidebarCollapsed && 'absolute -right-1 top-5')}
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </Button>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarMobileOpen(false)}>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            className="lg:hidden"
+            onClick={() => setSidebarMobileOpen(false)}
+            aria-label="Close navigation"
+          >
             <X size={16} />
           </Button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-2">
-          {navGroups.map((group) => (
-            <div key={group.title} className="mb-4">
-              {!sidebarCollapsed && (
-                <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+        <nav className="relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-4" aria-label="Primary">
+          {groups.map((group) => (
+            <div key={group.title} className="mb-5">
+              {!sidebarCollapsed ? (
+                <p className="mb-1.5 px-3 font-mono text-[9px] font-medium uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
                   {group.title}
                 </p>
+              ) : (
+                <div className="mx-auto mb-2 h-px w-6 bg-[var(--border)]" aria-hidden="true" />
               )}
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setSidebarMobileOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    location.pathname === item.path || location.pathname.startsWith(item.path + '/')
-                      ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                      : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]',
-                    sidebarCollapsed && 'justify-center px-2'
-                  )}
-                  title={sidebarCollapsed ? item.label : undefined}
-                >
-                  {item.icon}
-                  {!sidebarCollapsed && <span>{item.label}</span>}
-                </NavLink>
-              ))}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = activePath === item.path || location.pathname.startsWith(item.path + '/');
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setSidebarMobileOpen(false)}
+                      className={cn(
+                        'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors',
+                        active
+                          ? 'bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--foreground)]'
+                          : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]',
+                        sidebarCollapsed && 'justify-center px-2',
+                      )}
+                      title={sidebarCollapsed ? item.label : undefined}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-[var(--primary)]"
+                        />
+                      )}
+                      <item.icon
+                        size={17}
+                        className={cn(
+                          'flex-none transition-colors',
+                          active ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)] group-hover:text-[var(--foreground)]',
+                        )}
+                      />
+                      {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                      {!sidebarCollapsed && active && (
+                        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--primary)]" aria-hidden="true" />
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </nav>
 
-        {/* Footer */}
         <SidebarFooter collapsed={sidebarCollapsed} />
       </aside>
     </>
   );
 }
 
-export function Header() {
-  const { setSidebarMobileOpen, setCommandPaletteOpen, setNotificationDrawerOpen } = useUIStore();
-  const { mode, setMode } = useTheme();
-  const location = useLocation();
+function ConnectivityBanner() {
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
 
-  const getPageTitle = () => {
-    const path = location.pathname;
-    if (path === '/command-center') return 'Command Center';
-    if (path.startsWith('/emergencies')) return 'Emergencies';
-    if (path.startsWith('/ambulances')) return 'Ambulances';
-    if (path.startsWith('/hospitals')) return 'Hospitals';
-    if (path === '/tracking') return 'Live Tracking';
-    if (path === '/ai-vision') return 'AI Vision';
-    if (path === '/dispatch') return 'Dispatch Intelligence';
-    if (path === '/voice') return 'Voice Reports';
-    if (path === '/analytics') return 'Analytics';
-    if (path === '/green-corridor') return 'Green Corridor';
-    if (path === '/alerts') return 'Alerts';
-    if (path === '/audit') return 'Audit Logs';
-    if (path === '/settings') return 'Settings';
-    return 'RapidAid';
-  };
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  if (online) return null;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur-sm px-4 lg:px-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarMobileOpen(true)}>
-          <Menu size={20} />
+    <div
+      role="status"
+      className="mb-4 flex items-start gap-3 rounded-lg border border-[var(--warning)]/45 bg-[var(--warning)]/10 px-3.5 py-3"
+    >
+      <WifiOff size={16} className="mt-0.5 flex-none text-[var(--warning)]" />
+      <div>
+        <p className="text-sm font-medium">You are offline</p>
+        <p className="text-xs text-[var(--muted-foreground)]">
+          Cached screens remain readable. Actions that need the server will fail safely and can be retried
+          when the connection returns.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function Header() {
+  const { setSidebarMobileOpen, setCommandPaletteOpen, setNotificationDrawerOpen } = useUIStore();
+  const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const initials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
+
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: api.notifications.list,
+    refetchInterval: 30_000,
+    enabled: isAuthenticated,
+  });
+  const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
+
+  // Titles + audiences come from the shared navigation config, so a new page
+  // only has to be declared once.
+  const pageTitle = pageTitleFor(location.pathname);
+  const groupTitle =
+    navGroupsFor(user?.role, user?.permissions).find((group) =>
+      group.items.some((item) => normalizePath(location.pathname) === item.path),
+    )?.title ?? 'Workspace';
+
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color-mix(in_srgb,var(--border)_75%,transparent)] bg-[color-mix(in_srgb,var(--background)_82%,transparent)] px-3 backdrop-blur-xl sm:px-4 lg:px-8">
+      <div className="flex min-w-0 items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden"
+          onClick={() => setSidebarMobileOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu size={19} />
         </Button>
-        <h1 className="text-lg font-semibold">{getPageTitle()}</h1>
-        <Badge variant="outline" className="hidden sm:inline-flex">
-          <span className="mr-1 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          LIVE
-        </Badge>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+            <span>{groupTitle}</span>
+            <ChevronRight size={10} aria-hidden="true" />
+            <span className="truncate text-[color-mix(in_srgb,var(--foreground)_65%,var(--muted-foreground))]">
+              {pageTitle}
+            </span>
+          </div>
+          <p className="truncate font-display text-[15px] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-base">
+            {pageTitle}
+          </p>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => setCommandPaletteOpen(true)} title="Command Palette (Ctrl+K)">
+      <div className="flex flex-none items-center gap-1 sm:gap-1.5">
+        <button
+          type="button"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="hidden h-9 items-center gap-2 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_60%,transparent)] px-3 text-xs text-[var(--muted-foreground)] transition-colors hover:border-[color-mix(in_srgb,var(--primary)_30%,var(--border))] hover:text-[var(--foreground)] md:flex"
+          aria-label="Open command palette"
+        >
+          <Search size={14} />
+          <span>Search workspace</span>
+          <kbd className="ml-2 flex items-center gap-0.5 rounded border border-[var(--border)] bg-[var(--muted)] px-1 py-0.5 font-mono text-[9px]">
+            <Command size={9} />K
+          </kbd>
+        </button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={() => setCommandPaletteOpen(true)}
+          aria-label="Search workspace"
+          title="Search workspace"
+        >
           <Search size={18} />
         </Button>
 
-        <Button variant="ghost" size="icon" onClick={() => setNotificationDrawerOpen(true)} className="relative">
-          <Bell size={18} />
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--destructive)] text-[10px] font-bold text-white">
-            3
+        <div className="hidden items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--success)_35%,var(--border))] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] px-2.5 py-1 sm:flex">
+          <span className="status-dot status-dot--live text-[var(--success)]" aria-hidden="true" />
+          <span className="font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-[var(--success)]">
+            Live data
           </span>
-        </Button>
-
-        <div className="hidden sm:flex items-center gap-1 border border-[var(--border)] rounded-lg p-1">
-          <button
-            onClick={() => setMode('light')}
-            className={cn(
-              'rounded-md p-1.5 transition-colors',
-              mode === 'light' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            )}
-            title="Light Mode"
-          >
-            <Sun size={14} />
-          </button>
-          <button
-            onClick={() => setMode('dark')}
-            className={cn(
-              'rounded-md p-1.5 transition-colors',
-              mode === 'dark' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            )}
-            title="Dark Mode"
-          >
-            <Moon size={14} />
-          </button>
-          <button
-            onClick={() => setMode('system')}
-            className={cn(
-              'rounded-md p-1.5 transition-colors',
-              mode === 'system' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            )}
-            title="System Theme"
-          >
-            <Monitor size={14} />
-          </button>
         </div>
 
-        <div className="hidden md:flex items-center gap-2 ml-2 pl-2 border-l border-[var(--border)]">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-            DK
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setNotificationDrawerOpen(true)}
+          className="relative"
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+          title="Notifications"
+        >
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--destructive)] px-1 text-[9px] font-bold text-[var(--destructive-foreground)]">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </Button>
+
+        <ThemeButton />
+
+        <div className="ml-1 hidden items-center gap-2 border-l border-[var(--border)] pl-2 md:flex">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--primary)_30%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[10px] font-bold text-[var(--primary)]"
+            title={user ? `${user.name} · ${ROLE_LABELS[user.role]}` : undefined}
+          >
+            {initials}
           </div>
         </div>
       </div>
@@ -269,19 +375,78 @@ export function Header() {
   );
 }
 
+/**
+ * Reminder to confirm the mailbox, shown only while `emailVerified === false`.
+ *
+ * Unverified users keep full access on purpose — blocking sign-in would strand
+ * anyone who cannot receive mail behind a wall. The explicit `=== false` test
+ * matters: sessions persisted before the field existed deserialize with
+ * `undefined`, and a truthiness check would nag every existing demo user.
+ */
+function EmailVerificationBanner() {
+  const user = useAuthStore((s) => s.user);
+  if (user?.emailVerified !== false) return null;
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2">
+        <MailWarning className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warning)]" />
+        <div>
+          <p className="text-sm font-medium">Verify your email address</p>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Your account works, but confirming {user.email} secures it and enables recovery.
+          </p>
+        </div>
+      </div>
+      {/* A <Link> styled with buttonVariants rather than nesting a link inside a
+          <button>: this Button has no `asChild`, and anchors are not valid
+          interactive children of a button. */}
+      <Link
+        to="/forgot-password"
+        className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0 sm:w-auto')}
+      >
+        Resend link
+      </Link>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { sidebarCollapsed } = useUIStore();
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[120] -translate-y-24 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-foreground)] transition-transform focus:translate-y-0"
+      >
+        Skip to content
+      </a>
       <Sidebar />
-      <div className={cn(
-        'transition-all duration-300',
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-      )}>
+      <div
+        className={cn(
+          'relative min-h-screen transition-[margin] duration-300',
+          sidebarCollapsed ? 'lg:ml-[4.75rem]' : 'lg:ml-[17.5rem]',
+        )}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+        >
+          <div className="absolute -left-40 top-[-10%] h-[32rem] w-[32rem] rounded-full bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] blur-3xl" />
+          <div className="absolute right-[-10%] top-[28%] h-[28rem] w-[28rem] rounded-full bg-[color-mix(in_srgb,var(--info)_5%,transparent)] blur-3xl" />
+          <div className="cinematic-grid absolute inset-0 opacity-[0.28]" />
+        </div>
+
         <Header />
-        <main className="p-4 lg:p-6">
-          {children}
+        <main
+          id="main-content"
+          className="relative z-10 mx-auto w-full max-w-[1680px] px-4 py-5 sm:px-5 lg:px-8 lg:py-7"
+        >
+          <ConnectivityBanner />
+          <EmailVerificationBanner />
+          <PageTransition key={location.pathname}>{children}</PageTransition>
         </main>
       </div>
     </div>

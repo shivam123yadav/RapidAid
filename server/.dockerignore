@@ -1,0 +1,25 @@
+# Git and version control
+.git
+.github
+
+# Dependencies and caches
+node_modules
+dist
+coverage
+.nyc_output
+
+# Environment files and secrets
+.env*
+!.env.example
+
+# Logs and runtime diagnostics
+*.log
+*.txt
+
+# Persistent and local voice recordings
+storage/voice/**
+
+# Test files and local dev scripts
+tests
+scripts
+vitest.config.ts

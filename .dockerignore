@@ -1,0 +1,26 @@
+# Git and version control
+.git
+.github
+
+# Dependencies and caches
+node_modules
+dist
+coverage
+.nyc_output
+
+# Environment files and secrets
+.env*
+!.env.example
+
+# Logs and runtime diagnostics
+*.log
+*.txt
+.system_generated
+
+# Backend application tree (separate build context)
+server
+
+# Local scripts not needed during production build
+scripts/theme-shots
+scripts/theme-visual-check.mjs
+scripts/verify-whisper-pipeline.mjs

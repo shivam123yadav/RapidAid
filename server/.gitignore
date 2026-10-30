@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+/*.txt
+*.tmp
+
+# Secrets and environment files
+.env
+.env.*
+.env.local
+!.env.example
+
+# Stored voice recordings (patient audio — see src/services/voiceAudioStorage.ts).
+# Never commit: these are real recordings, not fixtures.
+storage/
+

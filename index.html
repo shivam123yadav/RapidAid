@@ -4,25 +4,98 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="RapidAid — AI-Powered Emergency Response Network. From Incident to Outcome — Faster." />
-    <meta name="theme-color" content="#0a0f1e" />
-    <title>RapidAid — AI-Powered Emergency Response Network</title>
+    <meta name="description" content="RapidAid — a connected emergency response network for incident intake, dispatch, live tracking, hospital handoff and operational oversight." />
+    <meta name="theme-color" content="#0b1220" />
+    <title>RapidAid — Every Second Matters</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <script>
-      // Prevent flash of incorrect theme
-      (function() {
+      // RapidAid flash guard — runs before the bundle so the very first paint
+      // already carries the restored palette AND appearance (no white flash on
+      // a night theme, no dark-to-light flash in System mode).
+      // This intentionally duplicates only the id list and the per-appearance
+      // base colours from src/theme/registry.ts; a test asserts they never
+      // drift.
+      (function () {
+        var IDS = ['command-pulse', 'northstar-os', 'aether-command', 'rescue-glass', 'warm-ivory'];
+        var MODES = ['day', 'night', 'system'];
+        // Base background per palette x appearance — the same values the theme
+        // registry carries, so the very first frame is painted in the right
+        // colour. A test asserts this map never drifts from the registry.
+        var BG = {
+          "command-pulse": { "day": "#f4f6fa", "night": "#0b1220" },
+          "northstar-os": { "day": "#f2f6fa", "night": "#07111f" },
+          "aether-command": { "day": "#f3f6f9", "night": "#070b14" },
+          "rescue-glass": { "day": "#f4f7fb", "night": "#0a1424" },
+          "warm-ivory": { "day": "#fff9e9", "night": "#1b1812" }
+        };
+        var id = null;
+        var mode = null;    // day | night | system
+        var legacy = null;  // light | dark | system, from a pre-appearance payload
+        var raw = null;
+        var mirror = null;
+        var state = {};
         try {
-          var stored = JSON.parse(localStorage.getItem('rapidaid-theme') || '{}');
-          var mode = stored.state && stored.state.mode ? stored.state.mode : 'system';
-          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (isDark) document.documentElement.classList.add('dark');
-        } catch(e) {
-          // Default to light mode (no class needed)
+          raw = localStorage.getItem('rapidaid-theme');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            state = (parsed && parsed.state) || {};
+            // Preferred: the stable theme id.
+            if (typeof state.themeId === 'string' && IDS.indexOf(state.themeId) !== -1) {
+              id = state.themeId;
+            }
+            if (typeof state.appearance === 'string' && MODES.indexOf(state.appearance) !== -1) {
+              mode = state.appearance;
+            } else if (state.mode === 'light' || state.mode === 'dark' || state.mode === 'system') {
+              // Legacy payload written before the appearance system existed.
+              legacy = state.mode;
+            }
+          }
+          // Plain-text mirror written by the store: `rapidaid-mode`.
+          if (!mode) {
+            mirror = localStorage.getItem('rapidaid-mode');
+            if (mirror === 'day' || mirror === 'night' || mirror === 'system') mode = mirror;
+            else if (mirror === 'light' || mirror === 'dark') legacy = legacy || mirror;
+          }
+        } catch (e) {
+          // Storage blocked or payload corrupt: fall through to the default.
         }
+
+        // Normalise a legacy light/dark/system payload into the new vocabulary.
+        if (!mode) {
+          if (legacy === 'light') mode = 'day';
+          else if (legacy === 'dark') mode = 'night';
+          else mode = 'system';
+        }
+        var prefersNight = !!(
+          window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        );
+        var appearance = mode === 'day' ? 'day' : mode === 'night' ? 'night'
+          : (prefersNight ? 'night' : 'day');
+
+        if (!id) {
+          // RAPIDAID's default palette is Command Pulse. A pre-theme-system
+          // payload recorded only light/dark, so honour that as a palette.
+          id = legacy === 'light' ? 'rescue-glass' : 'command-pulse';
+        }
+        if (IDS.indexOf(id) === -1) id = 'command-pulse';
+
+        var root = document.documentElement;
+        var colors = BG[id] || BG['command-pulse'];
+        root.setAttribute('data-theme', id);
+        root.setAttribute('data-appearance', appearance);
+        // The glow exists in Aether Command Night only.
+        root.setAttribute(
+          'data-glow',
+          id === 'aether-command' && appearance === 'night' ? 'on' : 'off'
+        );
+        if (appearance === 'night') root.classList.add('dark'); else root.classList.remove('dark');
+        root.style.colorScheme = appearance;
+        // Paint the page before the stylesheet arrives — no flash of white.
+        root.style.backgroundColor = colors[appearance];
       })();
     </script>
     <div id="root"></div>

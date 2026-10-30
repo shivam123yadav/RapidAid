@@ -14,14 +14,14 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
-      className
+      'flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-[var(--input)] bg-[color-mix(in_srgb,var(--card)_72%,transparent)] px-3.5 py-2 text-sm text-[var(--foreground)] transition-[border-color,box-shadow,background-color] placeholder:text-[var(--muted-foreground)] hover:border-[color-mix(in_srgb,var(--primary)_28%,var(--border))] focus:border-[var(--ring)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring)_28%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+      className,
     )}
     {...props}
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
+      <ChevronDown className="h-4 w-4 text-[var(--muted-foreground)]" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -63,10 +63,13 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+        // Portalled to <body>, so this is a *sibling* of any open dialog
+        // (overlay z-[100], content z-[101]) rather than a child of it.
+        // z-[110] keeps the list above both.
+        'glass-elevated select-content relative z-[110] max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-[var(--border)] text-[var(--foreground)] shadow-[var(--shadow-pop)]',
         position === 'popper' &&
           'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
-        className
+        className,
       )}
       position={position}
       {...props}
@@ -75,8 +78,7 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Viewport
         className={cn(
           'p-1',
-          position === 'popper' &&
-            'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]'
+          position === 'popper' && 'w-full min-w-[var(--radix-select-trigger-width)]',
         )}
       >
         {children}
@@ -93,7 +95,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn('py-1.5 pl-8 pr-2 text-sm font-semibold', className)}
+    className={cn('py-1.5 pl-8 pr-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]', className)}
     {...props}
   />
 ));
@@ -106,8 +108,8 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      className
+      'relative flex w-full cursor-default select-none items-center rounded-md py-2 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-[var(--accent)] focus:text-[var(--accent-foreground)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      className,
     )}
     {...props}
   >
@@ -127,7 +129,7 @@ const SelectSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px bg-muted', className)}
+    className={cn('-mx-1 my-1 h-px bg-[var(--muted)]', className)}
     {...props}
   />
 ));

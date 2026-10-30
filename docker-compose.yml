@@ -1,0 +1,146 @@
+# RapidAid V2 — Production-Oriented Multi-Container Orchestration
+# Services: MongoDB (auth enabled, dedicated app user), Backend API (Node 22 Express), Frontend (Nginx SPA proxy)
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: rapidaid-mongo
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:?Missing mandatory MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=rapidaid
+      - MONGO_APP_USERNAME=${MONGO_APP_USERNAME:-rapidaid_app}
+      - MONGO_APP_PASSWORD=${MONGO_APP_PASSWORD:?Missing mandatory MONGO_APP_PASSWORD}
+      - MONGO_BACKUP_USERNAME=${MONGO_BACKUP_USERNAME:-rapidaid_backup}
+      - MONGO_BACKUP_PASSWORD=${MONGO_BACKUP_PASSWORD:-}
+    configs:
+      - source: mongo_init_script
+        target: /docker-entrypoint-initdb.d/init-app-user.js
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - rapidaid-network
+    # Authenticated application-user healthcheck verifying database responsiveness
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh \"mongodb://$${MONGO_APP_USERNAME:-rapidaid_app}:$${MONGO_APP_PASSWORD}@localhost:27017/rapidaid?authSource=rapidaid\" --quiet --eval \"db.runCommand({ ping: 1 })\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    stop_grace_period: 20s
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: rapidaid-backend:latest
+    container_name: rapidaid-backend
+    restart: unless-stopped
+    stop_grace_period: 15s
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://${MONGO_APP_USERNAME:-rapidaid_app}:${MONGO_APP_PASSWORD}@mongodb:27017/rapidaid?authSource=rapidaid
+      - VOICE_AUDIO_STORAGE_DIR=/app/storage/voice
+      - TRUST_PROXY_HOPS=1
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3000}
+      - SEED_IF_EMPTY=false
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:?Missing mandatory JWT_ACCESS_SECRET (minimum 32 characters)}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?Missing mandatory JWT_REFRESH_SECRET (minimum 32 characters)}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - METRICS_SCRAPE_ENABLED=${METRICS_SCRAPE_ENABLED:-false}
+      - METRICS_SCRAPE_TOKEN=${METRICS_SCRAPE_TOKEN:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - voice-storage:/app/storage/voice
+    networks:
+      - rapidaid-network
+    # Process liveness healthcheck targeting /healthz.
+    # Note: Process liveness does not assert downstream database readiness (/readyz);
+    # targeting /healthz prevents container crash-looping during transient database reconnects.
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:' + (process.env.PORT || 5000) + '/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rapidaid-frontend:latest
+    container_name: rapidaid-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - rapidaid-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mongo-data:
+    name: rapidaid-mongo-data
+  voice-storage:
+    name: rapidaid-voice-storage
+
+networks:
+  rapidaid-network:
+    name: rapidaid-network
+    driver: bridge
+
+configs:
+  mongo_init_script:
+    content: |
+      // Repeatable, least-privilege application user creation on the application database
+      const appUser = process.env.MONGO_APP_USERNAME || 'rapidaid_app';
+      const appPass = process.env.MONGO_APP_PASSWORD;
+      const appDb = process.env.MONGO_INITDB_DATABASE || 'rapidaid';
+
+      if (appUser && appPass) {
+        const dbTarget = db.getSiblingDB(appDb);
+        if (!dbTarget.getUser(appUser)) {
+          dbTarget.createUser({
+            user: appUser,
+            pwd: appPass,
+            roles: [{ role: 'readWrite', db: appDb }]
+          });
+          console.log('[mongo-init] Successfully created least-privilege application user ' + appUser + ' on database ' + appDb);
+        } else {
+          console.log('[mongo-init] Application user ' + appUser + ' already exists on ' + appDb);
+        }
+      } else {
+        console.warn('[mongo-init] Warning: MONGO_APP_USERNAME or MONGO_APP_PASSWORD not set; skipping application user creation.');
+      }
+
+      // Dedicated, least-privilege read-only backup user on the application database
+      const backupUser = process.env.MONGO_BACKUP_USERNAME || 'rapidaid_backup';
+      const backupPass = process.env.MONGO_BACKUP_PASSWORD;
+
+      if (backupUser && backupPass) {
+        const dbTarget = db.getSiblingDB(appDb);
+        if (!dbTarget.getUser(backupUser)) {
+          dbTarget.createUser({
+            user: backupUser,
+            pwd: backupPass,
+            roles: [{ role: 'read', db: appDb }]
+          });
+          console.log('[mongo-init] Successfully created least-privilege backup user ' + backupUser + ' with read role on database ' + appDb);
+        } else {
+          console.log('[mongo-init] Backup user ' + backupUser + ' already exists on ' + appDb);
+        }
+      } else {
+        console.warn('[mongo-init] Warning: MONGO_BACKUP_PASSWORD not set; skipping backup user creation.');
+      }

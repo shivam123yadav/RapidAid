@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "vitest.config.ts"],
+  // frontend-rbac.test.ts and frontend-audio-normalize.test.ts import the shipped
+  // browser modules from src/lib. Those are bundler-resolved (extensionless) and
+  // need the DOM lib, which NodeNext rejects — so they are typechecked by the
+  // client project instead. vitest still RUNS them; only tsc's program skips them.
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/frontend-rbac.test.ts",
+    "tests/frontend-audio-normalize.test.ts",
+    "tests/frontend-audio-playback.test.ts"
+  ]
+}

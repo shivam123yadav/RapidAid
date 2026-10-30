@@ -2,4 +2,41 @@ node_modules/
 .next/
 dist/
 build/
+coverage/
 *.log
+*.tmp
+
+# Environment and secrets (preserve example template)
+.env
+.env.*
+.env.local
+!.env.example
+!.env.docker.example
+!.env.production.example
+
+# Bundled voice model + ONNX runtime (fetched by scripts/sync-voice-model.mjs)
+public/models/
+public/ort/
+
+# Generated spoken fixture for the UI verification flow
+# (regenerate with server/scripts/ui-tts.ps1)
+server/scripts/ui-tts.wav
+
+# Generated theme verification screenshots
+# (regenerate with scripts/theme-visual-check.mjs)
+scripts/theme-shots/
+
+# Stored voice recordings (patient audio) and backend scratch dumps
+server/storage/
+server/*.txt
+server/*.log
+
+# Database and voice storage backup archives and recovery sets
+backups/
+*.archive.gz
+.backup.lock
+*.key
+*.enc
+.restore-scratch-*
+backups/.staging-*
+backups/.test-run-*
