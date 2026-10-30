@@ -21,7 +21,8 @@
     "seed": "tsx src/seed/runSeed.ts",
     "seed:gwalior": "tsx scripts/run-seed-gwalior.ts",
     "migrate:idempotency": "tsx scripts/migrate-idempotency-index.ts",
-    "db:verify-indexes": "tsx scripts/verify-production-indexes.ts"
+    "db:verify-indexes": "tsx scripts/verify-production-indexes.ts",
+    "bootstrap:admin": "tsx scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

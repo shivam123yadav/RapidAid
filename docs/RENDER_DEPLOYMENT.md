@@ -151,3 +151,52 @@ All build and test suites pass cleanly locally:
 - Frontend tests: `npx vitest run` (13/13 passed)
 - Backend tests: `npm --prefix server run test` (11/11 passed in `phase4-production-readiness.test.ts`)
 - Production Index Verification: `npm --prefix server run db:verify-indexes` (11/11 collections verified)
+
+---
+
+## 6. Initial Staging Administrator Bootstrap (One-Time Provisioning)
+
+Public registration in RapidAid intentionally permits only `CITIZEN` accounts. Because `SEED_IF_EMPTY=false` must remain disabled to prevent synthetic demo seeding, the initial staging `ADMIN` account is provisioned using a secure, one-time bootstrap utility: [`server/scripts/bootstrap-admin.ts`](file:///d:/2_Project_build/workspace/server/scripts/bootstrap-admin.ts).
+
+### 6.1 Safety Guarantees & Constraints
+- **Strict Database Validation**: Refuses to run if connected to any database other than `rapidaid_staging`. Aborts immediately if connected to `rapidaid_phase1_test`, `rapidaid_test`, or an unapproved database.
+- **Active Admin Guard**: Checks whether an active `ADMIN` account already exists. If one exists, the script exits cleanly without performing any mutations (idempotent).
+- **Anti-Promotion Guard**: Verifies that the requested email is not already registered. It will never silently promote an existing `CITIZEN` account to `ADMIN`.
+- **Monotonic ID Allocation**: Scans existing user records (e.g., `USR-001`, `USR-002`) and synchronizes the sequence counter before allocating the next unique ID (`USR-003+`), preventing duplicate key errors.
+- **Zero Secrets Logging**: Interactive input prompts mask password entry. Passwords and hashes are never printed to stdout or written to logs.
+- **Canonical Password Hashing**: Utilizes the production bcrypt hashing service (`10` salt rounds).
+- **Strict ACID Multi-Document Transaction**: Claim verification, administrator existence check, ID allocation, user creation, and claim completion execute within a single MongoDB transaction (`session.withTransaction`) with snapshot isolation (`readConcern: 'local'`, `writeConcern: 'majority'`). If aborted or interrupted, MongoDB rolls back all mutations cleanly without leaving candidate accounts.
+- **Active Heartbeat & Atomic CAS**: Holds an active 1-second background heartbeat and atomic CAS fencing to prevent split-brain execution or stale claim collision.
+- **Audit Logging**: Emits an audit log record (`user.created`) in the `auditlogs` collection post-commit. Transient audit logging failures are handled safely without disrupting the committed administrator.
+- **No Synthetic Data**: Creates strictly one active `ADMIN` account and touches no other collections or records.
+
+### 6.2 Execution Procedure
+
+#### Interactive Execution (Recommended for Staging Operator)
+Run the script locally targeting the staging MongoDB database. The script will securely prompt for the administrator name, email, and password (masked):
+
+```bash
+# PowerShell
+$env:MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/rapidaid_staging?retryWrites=true&w=majority"
+npm --prefix server run bootstrap:admin
+```
+
+```bash
+# Bash / POSIX
+MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/rapidaid_staging?retryWrites=true&w=majority" npm --prefix server run bootstrap:admin
+```
+
+#### Non-Interactive Execution (Optional)
+If running via an automated pipeline where interactive terminal input is unavailable, provide the credentials via environment variables:
+
+```bash
+# PowerShell
+$env:MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/rapidaid_staging?retryWrites=true&w=majority"
+$env:BOOTSTRAP_ADMIN_NAME="RapidAid Staging Admin"
+$env:BOOTSTRAP_ADMIN_EMAIL="admin@rapidaid.com"
+$env:BOOTSTRAP_ADMIN_PASSWORD="YourStrongStagingPassword123!"
+npm --prefix server run bootstrap:admin
+```
+
+Once provisioned, the administrator can log in via the staging frontend ([https://rapidaid-web.onrender.com](https://rapidaid-web.onrender.com)) with the `Administrator` role.
+
