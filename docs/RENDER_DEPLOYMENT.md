@@ -12,6 +12,9 @@ RapidAid is configured as two decoupled services:
 
 RapidAid includes a declarative [`render.yaml`](file:///d:/2_Project_build/workspace/render.yaml) preconfigured for the Free plan.
 
+> [!NOTE]
+> In Render Blueprint specifications, static sites are declared within `services:` as `type: web` with `runtime: static`.
+
 1. Push your repository to GitHub: `https://github.com/shivam123yadav/RapidAid.git`.
 2. In the Render Dashboard, click **New +** > **Blueprint**.
 3. Connect your repository. Render automatically parses `render.yaml`.

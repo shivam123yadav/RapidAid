@@ -3,6 +3,10 @@
 # ==============================================================================
 # Declares both the Node.js Express Web Service (Backend) and the
 # React/Vite Static Site (Frontend) on Render's Free tier for staging verification.
+#
+# NOTE: In Render Blueprint specifications, Static Sites are declared as:
+#   type: web
+#   runtime: static
 # ==============================================================================
 
 services:
@@ -59,8 +63,9 @@ services:
         value: https://router.project-osrm.org
 
   # ── Frontend: RapidAid React/Vite Static Site (Free Tier) ─────────────────
-  - type: static
+  - type: web
     name: rapidaid-web
+    runtime: static
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     routes:
