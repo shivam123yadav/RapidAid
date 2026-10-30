@@ -13,9 +13,6 @@ RUN npm ci
 # Copy backend TypeScript source code
 COPY src/ ./src/
 
-# Provide ambient module declaration for optional server-whisper provider so tsc compiles cleanly in isolation
-RUN printf 'declare module "@huggingface/transformers";\n' > src/transformers.d.ts
-
 # Compile TypeScript into dist/
 RUN npm run build
 

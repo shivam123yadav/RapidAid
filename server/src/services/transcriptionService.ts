@@ -201,58 +201,39 @@ export async function transcribeAudio(
 
 type ServerProvider = (buffer: Buffer, mimeType: string | null) => Promise<string>;
 
-let serverProviderPromise: Promise<ServerProvider | null> | null = null;
+let registeredServerProvider: ServerProvider | null = null;
 
 /**
- * Loads an optional server-side Whisper provider.
- *
- * RapidAid ships no server-side speech model (the browser already transcribes
- * offline), so this resolves to `null` in every normal deployment. It exists so
- * that adding one is a configuration change rather than a refactor, and it
- * deliberately refuses any network speech API — spoken emergency audio must
- * not leave the deployment.
+ * Registers an optional server-side transcription provider (e.g. for testing or extensions).
+ * RapidAid ships no server-side speech model because transcription is performed
+ * on-device in the browser; this provides a clean extension seam without
+ * introducing heavy ML dependencies into the backend.
  */
-async function loadServerProvider(): Promise<ServerProvider | null> {
-  if (process.env.VOICE_TRANSCRIPTION_PROVIDER !== 'server-whisper') return null;
-  if (!serverProviderPromise) {
-    serverProviderPromise = (async (): Promise<ServerProvider | null> => {
-      try {
-        const module = (await import('@huggingface/transformers')) as unknown as {
-          pipeline: (
-            task: string,
-            model: string,
-            options?: Record<string, unknown>,
-          ) => Promise<(audio: Float32Array) => Promise<{ text?: string }>>;
-          env: { allowLocalModels: boolean; allowRemoteModels: boolean };
-        };
-        module.env.allowLocalModels = true;
-        module.env.allowRemoteModels = false;
-        const transcriber = await module.pipeline(
-          'automatic-speech-recognition',
-          process.env.VOICE_TRANSCRIPTION_MODEL ?? 'Xenova/whisper-tiny.en',
-          { dtype: 'q8' },
-        );
-        return async (buffer: Buffer): Promise<string> => {
-          // The provider receives exactly the normalized Buffer from step 1 —
-          // a Buffer IS a typed array, so `.subarray` is always available.
-          const samples = new Float32Array(
-            buffer.buffer,
-            buffer.byteOffset,
-            buffer.byteLength / 4,
-          );
-          const output = await transcriber(samples);
-          return typeof output?.text === 'string' ? output.text.trim() : '';
-        };
-      } catch (error) {
-        logger.warn({ err: error }, 'server-side voice transcription is unavailable');
-        return null;
-      }
-    })();
-  }
-  return serverProviderPromise;
+export function registerServerProvider(provider: ServerProvider | null): void {
+  registeredServerProvider = provider;
 }
 
-/** Test seam: forget any memoized server provider. */
+/**
+ * Loads an optional server-side transcription provider.
+ *
+ * RapidAid transcribes offline on the client device (via bundled Whisper in the browser),
+ * so in all standard deployments this resolves to `null` unless a custom server
+ * provider has been registered. Spoken emergency audio never leaves the deployment.
+ */
+async function loadServerProvider(): Promise<ServerProvider | null> {
+  if (registeredServerProvider) {
+    return registeredServerProvider;
+  }
+  if (process.env.VOICE_TRANSCRIPTION_PROVIDER === 'server-whisper') {
+    logger.warn(
+      'VOICE_TRANSCRIPTION_PROVIDER="server-whisper" was requested, but server-side speech recognition ' +
+        'is handled on-device by the frontend to prevent server ML dependency bloat. Register a provider via registerServerProvider if needed.',
+    );
+  }
+  return null;
+}
+
+/** Test seam: forget any memoized or registered server provider. */
 export function resetServerProviderCache(): void {
-  serverProviderPromise = null;
+  registeredServerProvider = null;
 }
