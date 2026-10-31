@@ -2,10 +2,16 @@ import { createHash, randomBytes } from 'node:crypto';
 import { EmailToken, EMAIL_TOKEN_TTL_MS, User } from '../../models/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
+import { ApiError } from '../../utils/errors.js';
 import { sendEmail } from './sender.js';
 import { passwordResetEmail, verificationEmail } from './templates.js';
 
 export type EmailTokenPurpose = 'verify' | 'reset';
+
+export const RESEND_COOLDOWN_MS = 60 * 1000;
+
+/** Set of user IDs with an in-flight resend request to prevent concurrent race conditions. */
+const inFlightResends = new Set<string>();
 
 const sha256 = (value: string): string =>
   createHash('sha256').update(value).digest('hex');
@@ -17,8 +23,9 @@ const sha256 = (value: string): string =>
  * resend cannot silently invalidate a link the user already has open while
  * leaving two live ones behind.
  *
- * Returns the raw token so callers can log or return it in a response; it is
- * never persisted and never leaves this process except in the email body.
+ * The raw token is never logged, never returned in an HTTP response body, and
+ * never persisted — only its SHA-256 hash is stored in MongoDB. The only
+ * channel through which the raw token leaves this process is the email body.
  */
 async function issueToken(
   user: { _id: string; name: string; email: string },
@@ -53,11 +60,57 @@ async function issueToken(
   return { token, expiresAt };
 }
 
-/** Sends (or re-sends) the address-confirmation link for a self-registered user. */
+/** Sends the address-confirmation link for a newly registered user. */
 export async function sendVerificationEmail(user: {
   _id: string; name: string; email: string;
 }): Promise<void> {
   await issueToken(user, 'verify');
+}
+
+/**
+ * Re-issues and sends an address-confirmation link with cooldown & verification checks.
+ *
+ * Rejects already verified accounts with a 400.
+ * Rejects rapid-fire requests within RESEND_COOLDOWN_MS with a 429.
+ * Invalidates any previous verification token by deleting it inside issueToken.
+ */
+export async function resendVerificationEmail(user: {
+  _id: string;
+  name: string;
+  email: string;
+  emailVerified?: boolean;
+}): Promise<{ success: boolean; message: string }> {
+  if (user.emailVerified) {
+    throw ApiError.badRequest('Email is already verified');
+  }
+
+  if (inFlightResends.has(user._id)) {
+    throw ApiError.tooManyRequests(
+      'Please wait before requesting another verification email',
+    );
+  }
+  inFlightResends.add(user._id);
+
+  try {
+    const recentToken = await EmailToken.findOne({ userId: user._id, purpose: 'verify' })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (recentToken) {
+      const elapsedMs = Date.now() - new Date(recentToken.createdAt).getTime();
+      if (elapsedMs < RESEND_COOLDOWN_MS) {
+        const retryAfterSec = Math.ceil((RESEND_COOLDOWN_MS - elapsedMs) / 1000);
+        throw ApiError.tooManyRequests(
+          `Please wait ${retryAfterSec}s before requesting another verification email`,
+        );
+      }
+    }
+
+    await issueToken(user, 'verify');
+    return { success: true, message: 'Verification email sent' };
+  } finally {
+    inFlightResends.delete(user._id);
+  }
 }
 
 /** Sends a password-reset link. The caller decides whether the account exists. */

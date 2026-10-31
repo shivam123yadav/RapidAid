@@ -45,7 +45,11 @@ export class ApiError extends Error {
   static conflict(message = 'Conflict'): ApiError {
     return new ApiError(409, 'CONFLICT', message);
   }
+  static tooManyRequests(message = 'Too many requests, please try again later'): ApiError {
+    return new ApiError(429, 'RATE_LIMITED', message);
+  }
   static serviceUnavailable(message = 'Service unavailable'): ApiError {
     return new ApiError(503, 'SERVICE_UNAVAILABLE', message);
   }
 }
+

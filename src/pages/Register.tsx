@@ -22,6 +22,7 @@ import { AuthLayout, AuthPanel } from '../components/layout/AuthLayout';
 import { getLoginError, useAuthStore } from '../stores/auth';
 import { homeRouteFor } from '../lib/navigation';
 import { cn } from '../lib/utils';
+import { api } from '../api/client';
 
 const registerSchema = z
   .object({
@@ -100,6 +101,17 @@ export function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendFeedback, setResendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   /**
    * `/register` returns a token pair, so signing up flips `isAuthenticated`
@@ -144,6 +156,26 @@ export function RegisterPage() {
     navigate('/login', { replace: true });
   };
 
+  const handleResendVerification = async () => {
+    if (resendLoading || resendCooldown > 0) return;
+    setResendLoading(true);
+    setResendFeedback(null);
+    try {
+      const res = await api.auth.resendVerification();
+      setResendFeedback({ type: 'success', message: res.message || 'Verification email sent! Check your inbox.' });
+      setResendCooldown(60);
+    } catch (err: unknown) {
+      const errMsg = (err as { message?: string })?.message || 'Failed to resend verification email';
+      const match = errMsg.match(/(\d+)s/);
+      if (match && match[1]) {
+        setResendCooldown(parseInt(match[1], 10));
+      }
+      setResendFeedback({ type: 'error', message: errMsg });
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const onSubmit = async (data: RegisterFormData) => {
     setError(null);
     const success = await registerUser(data.name.trim(), data.email, data.password);
@@ -175,21 +207,45 @@ export function RegisterPage() {
             <div className="mt-5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_55%,transparent)] p-3 text-left">
               <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
                 <span className="font-medium text-[var(--foreground)]">Signed in as {user?.email}.</span>{' '}
-                The link expires in 24 hours. If it does not arrive, check spam, or request a new one
-                from the password reset page.
+                The link expires in 24 hours. If it does not arrive, check spam, or request a new
+                verification email below.
               </p>
+              {resendFeedback && (
+                <p
+                  className={cn(
+                    'mt-2 text-xs font-medium',
+                    resendFeedback.type === 'success'
+                      ? 'text-[var(--success,#10b981)]'
+                      : 'text-[var(--destructive,#ef4444)]',
+                  )}
+                >
+                  {resendFeedback.message}
+                </p>
+              )}
             </div>
 
             <Button className="mt-5 w-full" size="lg" onClick={() => navigate(homeRouteFor('CITIZEN'))}>
               Continue to report an emergency
               <ArrowRight size={16} />
             </Button>
-            <Link
-              to="/forgot-password"
-              className={cn(buttonVariants({ variant: 'ghost' }), 'mt-1.5 w-full')}
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={resendLoading || resendCooldown > 0}
+              onClick={handleResendVerification}
+              className="mt-1.5 w-full"
             >
-              Resend verification email
-            </Link>
+              {resendLoading ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Sending...
+                </>
+              ) : resendCooldown > 0 ? (
+                `Resend in ${resendCooldown}s`
+              ) : (
+                'Resend verification email'
+              )}
+            </Button>
             <p className="mt-3 text-xs text-[var(--muted-foreground)]">
               Wrong account?{' '}
               <button

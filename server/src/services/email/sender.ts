@@ -43,10 +43,17 @@ export async function sendEmail(
       const result = await transport.send(message);
       if (!result.accepted) throw new Error('transport reported rejection');
 
-      logger.info(
-        { to: message.to, purpose: context.purpose, transport: transport.name, attempt },
-        'email delivered',
-      );
+      if (transport.name === 'console') {
+        logger.info(
+          { to: message.to, purpose: context.purpose, transport: transport.name, attempt },
+          'email simulated via console transport (not delivered over network)',
+        );
+      } else {
+        logger.info(
+          { to: message.to, purpose: context.purpose, transport: transport.name, attempt },
+          'email delivered',
+        );
+      }
       return { delivered: true, attempts: attempt };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);

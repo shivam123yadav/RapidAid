@@ -12,21 +12,21 @@ import { activeTransportName } from '../src/services/email/sender.js';
 const app = createApp();
 useTestDatabase(runSeed);
 
-/**
- * The console transport is the default in tests (no SMTP credentials), and it
- * prints the full action link — which is the only place the raw token ever
- * appears. Intercepting the structured log is therefore the honest way to
- * capture it, rather than reaching into the service for a value it
- * deliberately does not return.
- */
-let capturedBodies: string[] = [];
+import { ConsoleEmailTransport } from '../src/services/email/transports.js';
+import { createRateLimiter } from '../src/middleware/rateLimit.js';
+
+let capturedLogs: string[] = [];
 
 beforeEach(() => {
-  capturedBodies = [];
-  vi.spyOn(logger, 'info').mockImplementation((...args: unknown[]) => {
-    const [meta] = args as [{ body?: string }];
-    if (typeof meta?.body === 'string') capturedBodies.push(meta.body);
-  });
+  ConsoleEmailTransport.clearRecorded();
+  capturedLogs = [];
+  const logSpy = (...args: unknown[]) => {
+    capturedLogs.push(JSON.stringify(args));
+  };
+  vi.spyOn(logger, 'info').mockImplementation(logSpy);
+  vi.spyOn(logger, 'warn').mockImplementation(logSpy);
+  vi.spyOn(logger, 'error').mockImplementation(logSpy);
+  vi.spyOn(logger, 'debug').mockImplementation(logSpy);
 });
 
 afterEach(() => {
@@ -36,13 +36,14 @@ afterEach(() => {
 const sha256 = (value: string): string =>
   createHash('sha256').update(value).digest('hex');
 
-/** Pulls the token out of the most recent emitted action link. */
+/** Pulls the token out of the most recent in-memory recorded message (never from logs). */
 const lastToken = (): string => {
-  const withToken = capturedBodies
-    .map((body) => /token=([a-f0-9]{16,})/.exec(body)?.[1])
-    .filter((value): value is string => Boolean(value));
-  if (!withToken.length) throw new Error('No token found in captured email bodies');
-  return withToken[withToken.length - 1];
+  const lastMsg = ConsoleEmailTransport.getLastMessage();
+  if (!lastMsg) throw new Error('No email recorded in ConsoleEmailTransport');
+  const body = lastMsg.text || lastMsg.html || '';
+  const match = /token=([a-f0-9]{16,})/.exec(body);
+  if (!match?.[1]) throw new Error('No token found in recorded email body');
+  return match[1];
 };
 
 const registerCitizen = (email: string) =>
@@ -283,4 +284,211 @@ describe('existing accounts are unaffected', () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe('security: logging sanitization & token protection', () => {
+  it('never outputs raw verification tokens, URLs, or email bodies to logs', async () => {
+    capturedLogs = [];
+    const res = await registerCitizen('audit-logger@rapidaid.com');
+    expect(res.status).toBe(201);
+
+    const token = lastToken();
+    expect(token).toBeTruthy();
+
+    const allLogsJoined = capturedLogs.join(' ');
+
+    // Raw token must never appear in logs
+    expect(allLogsJoined).not.toContain(token);
+    // Verification URL must never appear in logs
+    expect(allLogsJoined).not.toContain('/verify-email?token=');
+    expect(allLogsJoined).not.toContain('verify-email');
+    // Console transport must not claim email delivered
+    expect(allLogsJoined).toContain('email simulated via console transport (not delivered over network)');
+    expect(allLogsJoined).not.toMatch(/"msg":"email delivered"/);
+  });
+
+  it('restricts recorded messages to test environments and prevents production retention', async () => {
+    // In test environment, recorded messages are captured
+    ConsoleEmailTransport.clearRecorded();
+    const transport = new ConsoleEmailTransport();
+    await transport.send({
+      to: 'retention-test@rapidaid.com',
+      subject: 'Subject',
+      text: 'Sensitive Body',
+      html: '<p>Sensitive Body</p>',
+    });
+    expect(ConsoleEmailTransport.getRecordedMessages()).toHaveLength(1);
+    expect(ConsoleEmailTransport.getLastMessage()?.text).toBe('Sensitive Body');
+
+    // Simulate non-test / production environment
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(ConsoleEmailTransport.getRecordedMessages()).toEqual([]);
+      expect(ConsoleEmailTransport.getLastMessage()).toBeUndefined();
+      await transport.send({
+        to: 'prod-test@rapidaid.com',
+        subject: 'Prod',
+        text: 'Should not record',
+        html: '<p>Should not record</p>',
+      });
+      expect(ConsoleEmailTransport.getRecordedMessages()).toEqual([]);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+});
+
+describe('POST /api/auth/resend-verification', () => {
+  it('rejects unauthenticated requests with 401', async () => {
+    const res = await request(app).post('/api/auth/resend-verification');
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('rejects already-verified accounts with 400 Bad Request', async () => {
+    const token = await loginAs(app, 'dispatcher');
+    const res = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(token));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/already verified/i);
+  });
+
+  it('successfully resends verification email for an unverified citizen with generic response', async () => {
+    const email = 'resend-success@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    expect(regRes.status).toBe(201);
+    const accessToken = regRes.body.accessToken;
+
+    // Reset timestamp of previous token to simulate cooldown elapsed
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 70000) } },
+    );
+
+    const resendRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(resendRes.status).toBe(200);
+    expect(resendRes.body).toMatchObject({
+      success: true,
+      message: expect.stringMatching(/verification email sent/i),
+    });
+  });
+
+  it('invalidates previous verification token when a new one is re-sent', async () => {
+    const email = 'invalidation-check@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+    const firstToken = lastToken();
+
+    // Reset timestamp so cooldown passes
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 70000) } },
+    );
+
+    const resendRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+    expect(resendRes.status).toBe(200);
+
+    const secondToken = lastToken();
+    expect(secondToken).not.toBe(firstToken);
+
+    // Old token is invalidated: verify with firstToken must fail
+    const firstVerify = await request(app)
+      .post('/api/auth/verify-email')
+      .send({ token: firstToken });
+    expect(firstVerify.status).toBe(400);
+    expect(firstVerify.body.error.message).toMatch(/invalid or has expired/i);
+
+    // New token works: verify with secondToken succeeds
+    const secondVerify = await request(app)
+      .post('/api/auth/verify-email')
+      .send({ token: secondToken });
+    expect(secondVerify.status).toBe(200);
+    expect(secondVerify.body).toMatchObject({ success: true, emailVerified: true });
+  });
+
+  it('enforces 60-second cooldown between resend requests', async () => {
+    const email = 'cooldown-check@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+
+    // Immediate resend should trigger 429 because registration just created a token < 60s ago
+    const immediateRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(immediateRes.status).toBe(429);
+    expect(immediateRes.body.error.code).toBe('RATE_LIMITED');
+    expect(immediateRes.body.error.message).toMatch(/please wait/i);
+
+    // Advance time past cooldown
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 65000) } },
+    );
+
+    const allowedRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(allowedRes.status).toBe(200);
+    expect(allowedRes.body.success).toBe(true);
+  });
+
+  it('applies rate limiting to prevent abuse', async () => {
+    const customLimiter = createRateLimiter({
+      windowMs: 60 * 1000,
+      limit: 2,
+      skip: () => false,
+    });
+
+    const testApp = (await import('express')).default();
+    testApp.post('/test-resend-limit', customLimiter, (_req, res) => res.json({ ok: true }));
+
+    await request(testApp).post('/test-resend-limit').expect(200);
+    await request(testApp).post('/test-resend-limit').expect(200);
+    const blocked = await request(testApp).post('/test-resend-limit');
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.code).toBe('RATE_LIMITED');
+  });
+
+  it('safely handles concurrent resend requests without racing', async () => {
+    const email = 'concurrent-resend@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+
+    // Reset timestamp so cooldown passes
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 70000) } },
+    );
+
+    // Fire 5 concurrent requests simultaneously
+    const responses = await Promise.all([
+      request(app).post('/api/auth/resend-verification').set(bearer(accessToken)),
+      request(app).post('/api/auth/resend-verification').set(bearer(accessToken)),
+      request(app).post('/api/auth/resend-verification').set(bearer(accessToken)),
+      request(app).post('/api/auth/resend-verification').set(bearer(accessToken)),
+      request(app).post('/api/auth/resend-verification').set(bearer(accessToken)),
+    ]);
+
+    const successful = responses.filter((r) => r.status === 200);
+    const rateLimited = responses.filter((r) => r.status === 429);
+
+    // Exactly one request should succeed; the others must be rejected with 429
+    expect(successful.length).toBe(1);
+    expect(rateLimited.length).toBe(4);
+    for (const r of rateLimited) {
+      expect(r.body.error.code).toBe('RATE_LIMITED');
+    }
+  });
+});
+
+
 

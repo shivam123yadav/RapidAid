@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { authLimiter } from '../middleware/rateLimit.js';
+import { authLimiter, resendVerificationLimiter } from '../middleware/rateLimit.js';
 import { User, Counter } from '../models/index.js';
 import { ApiError } from '../utils/errors.js';
 import { recordAudit } from '../services/auditService.js';
@@ -22,7 +22,7 @@ import {
 } from '../services/tokenService.js';
 import { loginSchema, registerSchema, verifyEmailSchema, forgotPasswordSchema, resetPasswordSchema } from '../validation/schemas.js';
 import { RefreshToken } from '../models/index.js';
-import { sendVerificationEmail, sendPasswordResetEmail, consumeToken, markEmailVerified } from '../services/email/emailService.js';
+import { sendVerificationEmail, resendVerificationEmail, sendPasswordResetEmail, consumeToken, markEmailVerified } from '../services/email/emailService.js';
 import type { Role } from '../validation/constants.js';
 
 export const authRouter = Router();
@@ -303,6 +303,44 @@ authRouter.post(
     });
 
     res.json({ success: true, emailVerified: true });
+  }),
+);
+
+/**
+ * POST /api/auth/resend-verification
+ * Authenticated endpoint to re-issue and send a fresh email verification link.
+ * Enforces:
+ *  - Authentication required.
+ *  - Only permits resending when emailVerified is false (400 if already verified).
+ *  - Issues a fresh token and invalidates any prior verification token.
+ *  - Applies rate limiting and 60-second cooldown to guard against abuse.
+ *  - Generic response envelope that avoids account enumeration/leakage.
+ */
+authRouter.post(
+  '/resend-verification',
+  authenticate,
+  resendVerificationLimiter,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.auth!.userId);
+    if (!user) throw ApiError.unauthorized('User no longer exists');
+
+    if (user.emailVerified) {
+      throw ApiError.badRequest('Email is already verified');
+    }
+
+    const result = await resendVerificationEmail(user);
+
+    await recordAudit({
+      actor: user.name,
+      actorId: user._id,
+      actorRole: user.role as never,
+      action: 'auth.verification_email_resent',
+      resource: 'User',
+      resourceId: user._id,
+      requestId: req.requestId,
+    });
+
+    res.json({ success: true, message: result.message });
   }),
 );
 

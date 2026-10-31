@@ -4,21 +4,40 @@ import { logger } from '../../config/logger.js';
 import type { EmailMessage, EmailSendResult, EmailTransport } from './transport.js';
 
 /**
- * Writes the message to the server log instead of sending it.
+ * Simulates email delivery for development and testing.
  *
- * This is the default so that verification and password-reset flows are fully
- * usable in development and CI with no provider account — the action link is
- * printed in full, which makes the flow testable end to end. The body is logged
- * at `info` only when it is a link-bearing flow; see `sender.ts`, which routes
- * through here for every message.
+ * Sensitive email payloads, verification tokens, and action links are never
+ * written to log streams or persisted to disk. Messages are retained in-memory
+ * strictly during test execution (isTest === true) for assertions; production
+ * instances never retain message payloads in memory.
  */
 export class ConsoleEmailTransport implements EmailTransport {
   readonly name = 'console';
 
+  /** In-memory storage for test assertions; only populated when isTest is true */
+  private static recordedMessages: EmailMessage[] = [];
+
+  static getRecordedMessages(): readonly EmailMessage[] {
+    if (process.env.NODE_ENV !== 'test') return [];
+    return this.recordedMessages;
+  }
+
+  static getLastMessage(): EmailMessage | undefined {
+    if (process.env.NODE_ENV !== 'test') return undefined;
+    return this.recordedMessages[this.recordedMessages.length - 1];
+  }
+
+  static clearRecorded(): void {
+    this.recordedMessages = [];
+  }
+
   async send(message: EmailMessage): Promise<EmailSendResult> {
+    if (process.env.NODE_ENV === 'test') {
+      ConsoleEmailTransport.recordedMessages.push(message);
+    }
     logger.info(
-      { to: message.to, subject: message.subject, body: message.text },
-      'email (console transport — not sent)',
+      { to: message.to, subject: message.subject },
+      'email captured by console transport (network dispatch disabled)',
     );
     return { accepted: true, id: `console-${Date.now()}` };
   }

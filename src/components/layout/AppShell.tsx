@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Command,
   Heart,
+  Loader2,
   LogOut,
   MailWarning,
   Menu,
@@ -385,7 +386,39 @@ export function Header() {
  */
 function EmailVerificationBanner() {
   const user = useAuthStore((s) => s.user);
+  const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   if (user?.emailVerified !== false) return null;
+
+  const handleResend = async () => {
+    if (loading || cooldown > 0) return;
+    setLoading(true);
+    setFeedback(null);
+    try {
+      const res = await api.auth.resendVerification();
+      setFeedback({ type: 'success', message: res.message || 'Verification link sent! Check your inbox.' });
+      setCooldown(60);
+    } catch (err: unknown) {
+      const errMsg = (err as { message?: string })?.message || 'Failed to resend verification email';
+      const match = errMsg.match(/(\d+)s/);
+      if (match && match[1]) {
+        setCooldown(parseInt(match[1], 10));
+      }
+      setFeedback({ type: 'error', message: errMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -396,17 +429,36 @@ function EmailVerificationBanner() {
           <p className="text-xs text-[var(--muted-foreground)]">
             Your account works, but confirming {user.email} secures it and enables recovery.
           </p>
+          {feedback && (
+            <p
+              className={cn(
+                'mt-1 text-xs font-medium',
+                feedback.type === 'success' ? 'text-[var(--success,#10b981)]' : 'text-[var(--destructive,#ef4444)]',
+              )}
+            >
+              {feedback.message}
+            </p>
+          )}
         </div>
       </div>
-      {/* A <Link> styled with buttonVariants rather than nesting a link inside a
-          <button>: this Button has no `asChild`, and anchors are not valid
-          interactive children of a button. */}
-      <Link
-        to="/forgot-password"
-        className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0 sm:w-auto')}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={loading || cooldown > 0}
+        onClick={handleResend}
+        className="shrink-0 sm:w-auto"
       >
-        Resend link
-      </Link>
+        {loading ? (
+          <>
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            Sending...
+          </>
+        ) : cooldown > 0 ? (
+          `Resend in ${cooldown}s`
+        ) : (
+          'Resend link'
+        )}
+      </Button>
     </div>
   );
 }

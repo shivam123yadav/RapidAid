@@ -190,10 +190,16 @@ if (isProd && env.SEED_IF_EMPTY) {
 // Selecting SMTP without a host would surface much later as an opaque nodemailer
 // connection error on the first send. Fail fast at boot instead, naming the
 // variables that are missing so the fix is obvious.
-if (env.EMAIL_TRANSPORT === 'smtp' && !env.EMAIL_SMTP_HOST) {
-  console.error('❌ EMAIL_TRANSPORT=smtp requires EMAIL_SMTP_HOST.');
-  console.error('   Set EMAIL_SMTP_HOST/PORT/USER/PASS, or use EMAIL_TRANSPORT=console for local development.');
-  process.exit(1);
+if (env.EMAIL_TRANSPORT === 'smtp') {
+  if (!env.EMAIL_SMTP_HOST) {
+    console.error('❌ EMAIL_TRANSPORT=smtp requires EMAIL_SMTP_HOST.');
+    console.error('   Set EMAIL_SMTP_HOST/PORT/USER/PASS, or use EMAIL_TRANSPORT=console for local development.');
+    process.exit(1);
+  }
+  if ((env.EMAIL_SMTP_USER && !env.EMAIL_SMTP_PASS) || (!env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS)) {
+    console.error('❌ EMAIL_TRANSPORT=smtp requires both EMAIL_SMTP_USER and EMAIL_SMTP_PASS when SMTP authentication is used.');
+    process.exit(1);
+  }
 }
 
 // Enabling the metrics scraper endpoint requires a strong bearer token (at least

@@ -104,6 +104,17 @@ export const cspReportLimiter = rateLimit({
   handler: rateLimitHandler,
 });
 
+/** Resend verification email limiter: 5 req / 15 min / user (falling back to IP). */
+export const resendVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => disabled,
+  keyGenerator: (req) => (req as { auth?: { userId?: string } }).auth?.userId ?? req.ip ?? 'unknown',
+  handler: rateLimitHandler,
+});
+
 /**
  * Factory helper for testing rate limiters or defining custom route limiters
  * without mutating global environment state.

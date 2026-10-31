@@ -208,6 +208,8 @@ export const api = {
       post<{ user: PublicUser; accessToken: string }>('/auth/register', data),
     verifyEmail: (token: string) =>
       post<{ success: boolean; emailVerified: boolean }>('/auth/verify-email', { token }),
+    resendVerification: () =>
+      post<{ success: boolean; message: string }>('/auth/resend-verification'),
     forgotPassword: (email: string) =>
       post<{ success: boolean; message: string }>('/auth/forgot-password', { email }),
     resetPassword: (token: string, password: string) =>
