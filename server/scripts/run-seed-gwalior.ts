@@ -1,15 +1,25 @@
 import mongoose from 'mongoose';
 import { env } from '../src/config/env.js';
-import { seedGwaliorDemoResources } from '../src/seed/seedGwaliorDemo.js';
+import {
+  seedGwaliorDemoResources,
+  isGwaliorDemoSeedingAllowed,
+  GWALIOR_DEMO_STAGING_ALLOWLIST,
+} from '../src/seed/seedGwaliorDemo.js';
 
 async function main() {
   const uri = env.MONGODB_URI;
-  if (!uri.includes('rapidaid_phase1_test')) {
-    throw new Error(`Safety restriction: MONGODB_URI must target 'rapidaid_phase1_test'. Current URI: ${uri}`);
-  }
-
   await mongoose.connect(uri);
-  console.log(`Connected to ${mongoose.connection.name}`);
+  const dbName = mongoose.connection.name;
+  console.log(`Connected to database: ${dbName}`);
+
+  if (!isGwaliorDemoSeedingAllowed(dbName)) {
+    await mongoose.disconnect();
+    throw new Error(
+      `Safety restriction violated: Database '${dbName}' is not in the approved staging allowlist (${GWALIOR_DEMO_STAGING_ALLOWLIST.join(
+        ', ',
+      )}). Production databases ('rapidaid') are strictly protected.`,
+    );
+  }
 
   const results = await seedGwaliorDemoResources();
   console.log('Seeded Ambulances:', results.ambulances);

@@ -112,6 +112,11 @@ async function loadGazetteer(): Promise<GazetteerEntry[]> {
     'red fort': { lat: 28.6562, lng: 77.2410, accuracy: 1500 },
     'rajwada square': { lat: 22.7196, lng: 75.8577, accuracy: 800 },
     'vijay nagar square': { lat: 22.7533, lng: 75.8937, accuracy: 1200 },
+    // Gwalior Demo Landmarks (exact coordinates from Gwalior demo fleet and incident specification)
+    'college main gate': { lat: 26.228854, lng: 78.213198, accuracy: 800 },
+    'college gate': { lat: 26.228854, lng: 78.213198, accuracy: 800 },
+    'phool bagh': { lat: 26.242, lng: 78.22, accuracy: 1000 },
+    'morar': { lat: 26.235, lng: 78.225, accuracy: 1200 },
   };
 
   const entries: GazetteerEntry[] = [];

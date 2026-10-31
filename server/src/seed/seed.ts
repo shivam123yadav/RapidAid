@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import {
   AIDetection,
   Ambulance,
@@ -34,6 +35,10 @@ import {
   reconcileVoiceAudioIntegrity,
 } from '../services/voiceAudioStorage.js';
 import { reconcileStrandedAmbulances } from '../services/emergencyService.js';
+import {
+  seedGwaliorDemoResources,
+  isGwaliorDemoSeedingAllowed,
+} from './seedGwaliorDemo.js';
 
 /**
  * Idempotent demo-data seeder.
@@ -100,6 +105,14 @@ export async function runSeed(): Promise<void> {
   // GeoJSON points power the nearest-hospital $geoNear query. Backfilling here
   // means a freshly seeded database is immediately routable.
   await ensureHospitalGeoFields();
+
+  // Integrate Gwalior demo resources only when connected to an approved staging/test database.
+  // Production databases ('rapidaid') are strictly protected and excluded.
+  const currentDb = mongoose.connection.name;
+  if (isGwaliorDemoSeedingAllowed(currentDb)) {
+    await seedGwaliorDemoResources();
+    logger.info({ db: currentDb }, 'Integrated Gwalior demo fleet for staging demonstration');
+  }
 
   logger.info({ ms: Date.now() - started }, 'Seed complete (idempotent upserts)');
 }

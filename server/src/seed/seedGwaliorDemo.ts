@@ -189,17 +189,42 @@ export const GWALIOR_DEMO_HOSPITALS = [
 ];
 
 /**
- * Idempotently seeds Gwalior demo test resources into rapidaid_phase1_test.
- * Strictly checks the active database name to prevent writing to any unauthorized database.
+ * Explicit staging-only database allowlist for Gwalior demo resources.
+ * Production databases ('rapidaid') are strictly excluded and rejected.
+ */
+export const GWALIOR_DEMO_STAGING_ALLOWLIST = [
+  'rapidaid_staging',
+  'rapidaid_phase1_test',
+  'rapidaid_test',
+] as const;
+
+/**
+ * Validates whether the active database is permitted to seed Gwalior demo resources.
+ * Explicitly rejects any production database names ('rapidaid', '*prod*').
+ */
+export function isGwaliorDemoSeedingAllowed(dbName: string | undefined | null): boolean {
+  if (!dbName) return false;
+  const clean = dbName.trim().toLowerCase();
+  if (clean === 'rapidaid' || clean.includes('prod')) {
+    return false;
+  }
+  return (GWALIOR_DEMO_STAGING_ALLOWLIST as readonly string[]).includes(clean);
+}
+
+/**
+ * Idempotently seeds Gwalior demo resources into approved staging/test databases.
+ * Strictly checks the active database name to prevent writing to any production database.
  */
 export async function seedGwaliorDemoResources(): Promise<{
   ambulances: Array<{ id: string; distanceMeters: number }>;
   hospitals: Array<{ id: string; distanceMeters: number }>;
 }> {
   const currentDbName = mongoose.connection.name;
-  if (currentDbName !== 'rapidaid_phase1_test') {
+  if (!isGwaliorDemoSeedingAllowed(currentDbName)) {
     throw new Error(
-      `Safety restriction violated: Must only seed into 'rapidaid_phase1_test', current database is '${currentDbName}'`,
+      `Safety restriction violated: Must only seed into approved staging databases (${GWALIOR_DEMO_STAGING_ALLOWLIST.join(
+        ', ',
+      )}), current database is '${currentDbName}'`,
     );
   }
 
