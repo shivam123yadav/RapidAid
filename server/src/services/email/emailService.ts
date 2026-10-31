@@ -30,12 +30,13 @@ const sha256 = (value: string): string =>
 async function issueToken(
   user: { _id: string; name: string; email: string },
   purpose: EmailTokenPurpose,
-): Promise<{ token: string; expiresAt: Date }> {
+): Promise<{ token: string; expiresAt: Date; delivered: boolean }> {
   await EmailToken.deleteMany({ userId: user._id, purpose });
 
   const token = randomBytes(48).toString('hex');
+  const tokenHash = sha256(token);
   const expiresAt = new Date(Date.now() + EMAIL_TOKEN_TTL_MS);
-  await EmailToken.create({ tokenHash: sha256(token), userId: user._id, purpose, expiresAt });
+  const createdDoc = await EmailToken.create({ tokenHash, userId: user._id, purpose, expiresAt });
 
   const url =
     purpose === 'verify'
@@ -46,8 +47,6 @@ async function issueToken(
     ? verificationEmail(user.name, url)
     : passwordResetEmail(user.name, url);
 
-  // Best-effort: the token is already stored, so a failed send only means the
-  // user must request another. Delivery is retried with backoff inside sendEmail.
   const result = await sendEmail(
     { to: user.email, subject: content.subject, text: content.text, html: content.html },
     { purpose: `email.${purpose}`, userId: user._id },
@@ -55,16 +54,25 @@ async function issueToken(
 
   if (!result.delivered) {
     logger.error({ userId: user._id, purpose }, 'token issued but email delivery failed');
+    // Invalidate ONLY the exact newly generated token using its _id, tokenHash, userId, and purpose.
+    // Do not delete a newer token or one that was consumed concurrently.
+    await EmailToken.deleteOne({
+      _id: createdDoc._id,
+      tokenHash,
+      userId: user._id,
+      purpose,
+    });
   }
 
-  return { token, expiresAt };
+  return { token, expiresAt, delivered: result.delivered };
 }
 
 /** Sends the address-confirmation link for a newly registered user. */
 export async function sendVerificationEmail(user: {
   _id: string; name: string; email: string;
-}): Promise<void> {
-  await issueToken(user, 'verify');
+}): Promise<{ delivered: boolean }> {
+  const res = await issueToken(user, 'verify');
+  return { delivered: res.delivered };
 }
 
 /**
@@ -73,13 +81,14 @@ export async function sendVerificationEmail(user: {
  * Rejects already verified accounts with a 400.
  * Rejects rapid-fire requests within RESEND_COOLDOWN_MS with a 429.
  * Invalidates any previous verification token by deleting it inside issueToken.
+ * If SMTP dispatch fails, the newly issued token is invalidated so it does not consume cooldown.
  */
 export async function resendVerificationEmail(user: {
   _id: string;
   name: string;
   email: string;
   emailVerified?: boolean;
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<{ success: boolean; message: string; delivered: boolean }> {
   if (user.emailVerified) {
     throw ApiError.badRequest('Email is already verified');
   }
@@ -87,6 +96,8 @@ export async function resendVerificationEmail(user: {
   if (inFlightResends.has(user._id)) {
     throw ApiError.tooManyRequests(
       'Please wait before requesting another verification email',
+      'RATE_LIMITED',
+      { reason: 'in_flight', retryAfter: 5 },
     );
   }
   inFlightResends.add(user._id);
@@ -102,12 +113,21 @@ export async function resendVerificationEmail(user: {
         const retryAfterSec = Math.ceil((RESEND_COOLDOWN_MS - elapsedMs) / 1000);
         throw ApiError.tooManyRequests(
           `Please wait ${retryAfterSec}s before requesting another verification email`,
+          'RATE_LIMITED',
+          { reason: 'cooldown', retryAfter: retryAfterSec },
         );
       }
     }
 
-    await issueToken(user, 'verify');
-    return { success: true, message: 'Verification email sent' };
+    const { delivered } = await issueToken(user, 'verify');
+    if (!delivered) {
+      throw ApiError.serviceUnavailable(
+        'Unable to deliver verification email at this moment. Please try again shortly.',
+        'EMAIL_DELIVERY_FAILED',
+        { retryAfter: 5 },
+      );
+    }
+    return { success: true, message: 'Verification email sent', delivered: true };
   } finally {
     inFlightResends.delete(user._id);
   }
@@ -116,8 +136,9 @@ export async function resendVerificationEmail(user: {
 /** Sends a password-reset link. The caller decides whether the account exists. */
 export async function sendPasswordResetEmail(user: {
   _id: string; name: string; email: string;
-}): Promise<void> {
-  await issueToken(user, 'reset');
+}): Promise<{ delivered: boolean }> {
+  const res = await issueToken(user, 'reset');
+  return { delivered: res.delivered };
 }
 
 /**

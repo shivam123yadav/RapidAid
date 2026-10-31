@@ -22,7 +22,7 @@ import { AuthLayout, AuthPanel } from '../components/layout/AuthLayout';
 import { getLoginError, useAuthStore } from '../stores/auth';
 import { homeRouteFor } from '../lib/navigation';
 import { cn } from '../lib/utils';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 
 const registerSchema = z
   .object({
@@ -97,6 +97,7 @@ export function RegisterPage() {
   const logout = useAuthStore((state) => state.logout);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
+  const registrationDelivery = useAuthStore((state) => state.registrationEmailDelivery);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export function RegisterPage() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendFeedback, setResendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const resendInFlightRef = useRef(false);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -157,7 +159,8 @@ export function RegisterPage() {
   };
 
   const handleResendVerification = async () => {
-    if (resendLoading || resendCooldown > 0) return;
+    if (resendLoading || resendCooldown > 0 || resendInFlightRef.current) return;
+    resendInFlightRef.current = true;
     setResendLoading(true);
     setResendFeedback(null);
     try {
@@ -165,13 +168,25 @@ export function RegisterPage() {
       setResendFeedback({ type: 'success', message: res.message || 'Verification email sent! Check your inbox.' });
       setResendCooldown(60);
     } catch (err: unknown) {
+      const apiErr = err instanceof ApiError ? err : null;
       const errMsg = (err as { message?: string })?.message || 'Failed to resend verification email';
-      const match = errMsg.match(/(\d+)s/);
-      if (match && match[1]) {
-        setResendCooldown(parseInt(match[1], 10));
+      const details = (apiErr?.details ?? (err as { details?: unknown })?.details) as { retryAfter?: number } | undefined;
+      let seconds = details?.retryAfter;
+      if (!seconds) {
+        const match = errMsg.match(/(\d+)s/);
+        if (match && match[1]) {
+          seconds = parseInt(match[1], 10);
+        }
+      }
+      if (apiErr?.status === 429 && !seconds) {
+        seconds = 5;
+      }
+      if (seconds && seconds > 0) {
+        setResendCooldown(seconds);
       }
       setResendFeedback({ type: 'error', message: errMsg });
     } finally {
+      resendInFlightRef.current = false;
       setResendLoading(false);
     }
   };
@@ -200,29 +215,43 @@ export function RegisterPage() {
             <p className="eyebrow mt-5">Account created</p>
             <h1 className="mt-1.5 font-display text-2xl font-semibold tracking-[-0.035em]">Check your email</h1>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[var(--muted-foreground)]">
-              We sent a verification link to your address. Confirm it to fully activate your account.
-              You can sign in now and verify later.
+              {registrationDelivery === 'failed'
+                ? 'Your account was created and you are signed in, but verification delivery could not be confirmed. You can continue reporting emergencies now.'
+                : 'We sent a verification link to your address. Confirm it to fully activate your account. You can sign in now and verify later.'}
             </p>
 
-            <div className="mt-5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_55%,transparent)] p-3 text-left">
-              <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-                <span className="font-medium text-[var(--foreground)]">Signed in as {user?.email}.</span>{' '}
-                The link expires in 24 hours. If it does not arrive, check spam, or request a new
-                verification email below.
-              </p>
-              {resendFeedback && (
-                <p
-                  className={cn(
-                    'mt-2 text-xs font-medium',
-                    resendFeedback.type === 'success'
-                      ? 'text-[var(--success,#10b981)]'
-                      : 'text-[var(--destructive,#ef4444)]',
-                  )}
-                >
-                  {resendFeedback.message}
+            {registrationDelivery === 'failed' ? (
+              <div className="mt-5 rounded-lg border border-[var(--warning,#f59e0b)]/40 bg-[color-mix(in_srgb,var(--warning,#f59e0b)_12%,transparent)] p-3 text-left">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warning,#f59e0b)]" />
+                  <p className="text-xs leading-relaxed text-[var(--foreground)]">
+                    <span className="font-medium">Signed in as {user?.email}.</span>{' '}
+                    We could not confirm delivery of your verification email at this moment. You can continue using your account and request a new verification email below whenever you wish.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_55%,transparent)] p-3 text-left">
+                <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                  <span className="font-medium text-[var(--foreground)]">Signed in as {user?.email}.</span>{' '}
+                  The link expires in 24 hours. If it does not arrive, check spam, or request a new
+                  verification email below.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
+
+            {resendFeedback && (
+              <p
+                className={cn(
+                  'mt-2 text-xs font-medium',
+                  resendFeedback.type === 'success'
+                    ? 'text-[var(--success,#10b981)]'
+                    : 'text-[var(--destructive,#ef4444)]',
+                )}
+              >
+                {resendFeedback.message}
+              </p>
+            )}
 
             <Button className="mt-5 w-full" size="lg" onClick={() => navigate(homeRouteFor('CITIZEN'))}>
               Continue to report an emergency

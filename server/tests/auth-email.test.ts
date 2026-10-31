@@ -19,6 +19,8 @@ let capturedLogs: string[] = [];
 
 beforeEach(() => {
   ConsoleEmailTransport.clearRecorded();
+  ConsoleEmailTransport.setSimulatedFailure(null);
+  ConsoleEmailTransport.setSimulatedRejection(false);
   capturedLogs = [];
   const logSpy = (...args: unknown[]) => {
     capturedLogs.push(JSON.stringify(args));
@@ -30,6 +32,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  ConsoleEmailTransport.setSimulatedFailure(null);
+  ConsoleEmailTransport.setSimulatedRejection(false);
   vi.restoreAllMocks();
 });
 
@@ -486,7 +490,166 @@ describe('POST /api/auth/resend-verification', () => {
     expect(rateLimited.length).toBe(4);
     for (const r of rateLimited) {
       expect(r.body.error.code).toBe('RATE_LIMITED');
+      expect(r.body.error.details?.retryAfter).toBe(5);
     }
+  });
+
+  it('provides structured retryAfter on 60-second database cooldown', async () => {
+    const email = 'cooldown-structured@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+
+    const resendRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(resendRes.status).toBe(429);
+    expect(resendRes.body.error.code).toBe('RATE_LIMITED');
+    expect(resendRes.body.error.details?.retryAfter).toBeGreaterThan(0);
+    expect(resendRes.body.error.details?.retryAfter).toBeLessThanOrEqual(60);
+  });
+
+  it('handles SMTP rejection gracefully with 503 and retryAfter without leaking internals', async () => {
+    const email = 'smtp-rejection@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+
+    // Reset timestamp so cooldown passes
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 70000) } },
+    );
+
+    // Simulate Nodemailer socket/greeting timeout error
+    ConsoleEmailTransport.setSimulatedFailure(new Error('Greeting timeout 10000ms Nodemailer SMTP'));
+
+    const failRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(failRes.status).toBe(503);
+    expect(failRes.body.error.code).toBe('EMAIL_DELIVERY_FAILED');
+    expect(failRes.body.error.message).toBe('Unable to deliver verification email at this moment. Please try again shortly.');
+    expect(failRes.body.error.details?.retryAfter).toBe(5);
+
+    // Verify internals (Nodemailer, timeout, SMTP) are not exposed in response body
+    expect(JSON.stringify(failRes.body)).not.toContain('Nodemailer');
+    expect(JSON.stringify(failRes.body)).not.toContain('timeout 10000ms');
+
+    // Verify token was invalidated / deleted so failed attempt does not consume cooldown
+    const tokensAfterFail = await EmailToken.find({ userId: regRes.body.user.id, purpose: 'verify' });
+    // The previous token was already deleted prior to issueToken, and the newly generated token was purged on failure
+    expect(tokensAfterFail.length).toBe(0);
+
+    // Restore transport and verify immediate retry succeeds without waiting 60s
+    ConsoleEmailTransport.setSimulatedFailure(null);
+    const retryRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(retryRes.status).toBe(200);
+    expect(retryRes.body.success).toBe(true);
+    expect(retryRes.body.delivered).toBe(true);
+  });
+
+  it('handles transport returning delivered:false without throwing and purges only the new token', async () => {
+    const email = 'smtp-undelivered@rapidaid.com';
+    const regRes = await registerCitizen(email);
+    const accessToken = regRes.body.accessToken;
+
+    // Create a password reset token for the same user to ensure other purpose tokens are not deleted
+    await EmailToken.create({
+      userId: regRes.body.user.id,
+      tokenHash: sha256('reset-token-sample'),
+      purpose: 'reset',
+      expiresAt: new Date(Date.now() + 3600000),
+      createdAt: new Date(),
+    });
+
+    // Reset verify token timestamp so cooldown passes
+    await EmailToken.updateMany(
+      { userId: regRes.body.user.id, purpose: 'verify' },
+      { $set: { createdAt: new Date(Date.now() - 70000) } },
+    );
+
+    // Simulate transport returning delivered: false
+    ConsoleEmailTransport.setSimulatedRejection(true);
+
+    const failRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(failRes.status).toBe(503);
+    expect(failRes.body.error.code).toBe('EMAIL_DELIVERY_FAILED');
+    expect(failRes.body.error.details?.retryAfter).toBe(5);
+
+    // The reset token must remain untouched
+    const resetToken = await EmailToken.findOne({ userId: regRes.body.user.id, purpose: 'reset' });
+    expect(resetToken).toBeTruthy();
+
+    // Verify tokens were cleared so cooldown is not consumed
+    const verifyTokens = await EmailToken.find({ userId: regRes.body.user.id, purpose: 'verify' });
+    expect(verifyTokens.length).toBe(0);
+
+    // Immediate retry after restoring transport succeeds
+    ConsoleEmailTransport.setSimulatedRejection(false);
+    const retryRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(retryRes.status).toBe(200);
+    expect(retryRes.body.delivered).toBe(true);
+  });
+
+  it('keeps registration available when email delivery fails and reports delivery status', async () => {
+    ConsoleEmailTransport.setSimulatedRejection(true);
+
+    const res = await registerCitizen('failed-reg-email@rapidaid.com');
+    expect(res.status).toBe(201);
+    expect(res.body.user).toBeTruthy();
+    expect(res.body.user.emailVerified).toBe(false);
+    expect(res.body.accessToken).toBeTruthy();
+    expect(res.body.emailDelivery).toBe('failed');
+
+    // The user was created in DB
+    const dbUser = await User.findById(res.body.user.id);
+    expect(dbUser).toBeTruthy();
+
+    // No failed verify token was left dangling
+    const tokens = await EmailToken.find({ userId: res.body.user.id, purpose: 'verify' });
+    expect(tokens.length).toBe(0);
+
+    // Cooldown is not consumed: when transport is restored, immediate resend succeeds
+    ConsoleEmailTransport.setSimulatedRejection(false);
+    const resendRes = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(res.body.accessToken));
+
+    expect(resendRes.status).toBe(200);
+    expect(resendRes.body.delivered).toBe(true);
+  });
+
+  it('never leaks raw tokens, hashes, or SMTP internals in error responses or logs', async () => {
+    ConsoleEmailTransport.setSimulatedFailure(new Error('Internal SMTP socket failure on port 587'));
+
+    const regRes = await registerCitizen('leak-test@rapidaid.com');
+    const accessToken = regRes.body.accessToken;
+
+    const res = await request(app)
+      .post('/api/auth/resend-verification')
+      .set(bearer(accessToken));
+
+    expect(res.status).toBe(503);
+    const responseText = JSON.stringify(res.body);
+    // Never leak SMTP internals or tokens in API responses
+    expect(responseText).not.toContain('SMTP');
+    expect(responseText).not.toContain('port 587');
+    expect(responseText).not.toContain('tokenHash');
+
+    // Logs must not leak any 64+ char hex tokens or verification URLs
+    const allLogs = capturedLogs.join(' ');
+    expect(allLogs).not.toMatch(/[a-f0-9]{64,}/);
+    expect(allLogs).not.toContain('verify-email?token=');
   });
 });
 

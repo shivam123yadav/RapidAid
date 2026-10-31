@@ -7,6 +7,7 @@ import type { UserRole } from '../types';
 interface AuthState {
   isAuthenticated: boolean;
   user: PublicUser | null;
+  registrationEmailDelivery: 'sent' | 'failed' | null;
   /**
    * Returns true on success. On failure the server's error message (wrong
    * password, role mismatch …) is available via getLoginError() so the
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       isAuthenticated: false,
       user: null,
+      registrationEmailDelivery: null,
 
       login: async (email: string, password: string, role: UserRole): Promise<boolean> => {
         lastLoginError = null;
@@ -57,14 +59,18 @@ export const useAuthStore = create<AuthState>()(
         try {
           // Role is fixed to CITIZEN: privileged accounts are provisioned
           // through the audited admin API, never chosen by the public.
-          const { user, accessToken } = await api.auth.register({ name, email, password, role: 'CITIZEN' });
-          session.setAccessToken(accessToken);
-          set({ isAuthenticated: true, user });
+          const res = await api.auth.register({ name, email, password, role: 'CITIZEN' });
+          session.setAccessToken(res.accessToken);
+          set({
+            isAuthenticated: true,
+            user: res.user,
+            registrationEmailDelivery: res.emailDelivery ?? 'sent',
+          });
           return true;
         } catch (err) {
           lastLoginError = err instanceof Error ? err.message : null;
           session.setAccessToken(null);
-          set({ isAuthenticated: false, user: null });
+          set({ isAuthenticated: false, user: null, registrationEmailDelivery: null });
           return false;
         }
       },

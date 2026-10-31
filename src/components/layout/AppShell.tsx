@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useUIStore } from '../../stores/ui';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { Button, buttonVariants } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ThemeButton } from '../theme/ThemeButton';
@@ -384,11 +384,12 @@ export function Header() {
  * matters: sessions persisted before the field existed deserialize with
  * `undefined`, and a truthiness check would nag every existing demo user.
  */
-function EmailVerificationBanner() {
+export function EmailVerificationBanner() {
   const user = useAuthStore((s) => s.user);
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -401,7 +402,8 @@ function EmailVerificationBanner() {
   if (user?.emailVerified !== false) return null;
 
   const handleResend = async () => {
-    if (loading || cooldown > 0) return;
+    if (loading || cooldown > 0 || inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
     setFeedback(null);
     try {
@@ -409,13 +411,25 @@ function EmailVerificationBanner() {
       setFeedback({ type: 'success', message: res.message || 'Verification link sent! Check your inbox.' });
       setCooldown(60);
     } catch (err: unknown) {
+      const apiErr = err instanceof ApiError ? err : null;
       const errMsg = (err as { message?: string })?.message || 'Failed to resend verification email';
-      const match = errMsg.match(/(\d+)s/);
-      if (match && match[1]) {
-        setCooldown(parseInt(match[1], 10));
+      const details = (apiErr?.details ?? (err as { details?: unknown })?.details) as { retryAfter?: number } | undefined;
+      let seconds = details?.retryAfter;
+      if (!seconds) {
+        const match = errMsg.match(/(\d+)s/);
+        if (match && match[1]) {
+          seconds = parseInt(match[1], 10);
+        }
+      }
+      if (apiErr?.status === 429 && !seconds) {
+        seconds = 5;
+      }
+      if (seconds && seconds > 0) {
+        setCooldown(seconds);
       }
       setFeedback({ type: 'error', message: errMsg });
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   };

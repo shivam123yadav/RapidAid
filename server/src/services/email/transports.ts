@@ -27,12 +27,33 @@ export class ConsoleEmailTransport implements EmailTransport {
     return this.recordedMessages[this.recordedMessages.length - 1];
   }
 
+  private static simulatedFailure: Error | null = null;
+  private static simulatedRejection = false;
+
+  static setSimulatedFailure(err: Error | null): void {
+    if (process.env.NODE_ENV !== 'test') return;
+    this.simulatedFailure = err;
+  }
+
+  static setSimulatedRejection(rejected: boolean): void {
+    if (process.env.NODE_ENV !== 'test') return;
+    this.simulatedRejection = rejected;
+  }
+
   static clearRecorded(): void {
     this.recordedMessages = [];
+    this.simulatedFailure = null;
+    this.simulatedRejection = false;
   }
 
   async send(message: EmailMessage): Promise<EmailSendResult> {
     if (process.env.NODE_ENV === 'test') {
+      if (ConsoleEmailTransport.simulatedFailure) {
+        throw ConsoleEmailTransport.simulatedFailure;
+      }
+      if (ConsoleEmailTransport.simulatedRejection) {
+        return { accepted: false, id: `console-rejected-${Date.now()}` };
+      }
       ConsoleEmailTransport.recordedMessages.push(message);
     }
     logger.info(
@@ -56,6 +77,10 @@ export class SmtpEmailTransport implements EmailTransport {
       ...(env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS
         ? { auth: { user: env.EMAIL_SMTP_USER, pass: env.EMAIL_SMTP_PASS } }
         : {}),
+      // Bounded timeouts to prevent socket hangs and indefinite pending requests
+      connectionTimeout: 10000, // 10 seconds to establish TCP connection
+      greetingTimeout: 10000,   // 10 seconds for initial server greeting
+      socketTimeout: 15000,     // 15 seconds max inactivity on socket
     });
   }
 

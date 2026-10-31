@@ -9,22 +9,23 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
   }
 
-  static badRequest(message = 'Bad request'): ApiError {
-    return new ApiError(400, 'BAD_REQUEST', message);
+  static badRequest(message = 'Bad request', code = 'BAD_REQUEST', details?: unknown): ApiError {
+    return new ApiError(400, code, message, details);
   }
-  static unauthorized(message = 'Authentication required'): ApiError {
-    return new ApiError(401, 'UNAUTHORIZED', message);
+  static unauthorized(message = 'Authentication required', code = 'UNAUTHORIZED', details?: unknown): ApiError {
+    return new ApiError(401, code, message, details);
   }
-  static forbidden(message = 'You do not have permission to perform this action'): ApiError {
-    return new ApiError(403, 'FORBIDDEN', message);
+  static forbidden(message = 'You do not have permission to perform this action', code = 'FORBIDDEN', details?: unknown): ApiError {
+    return new ApiError(403, code, message, details);
   }
-  static notFound(message = 'Resource not found'): ApiError {
-    return new ApiError(404, 'NOT_FOUND', message);
+  static notFound(message = 'Resource not found', code = 'NOT_FOUND', details?: unknown): ApiError {
+    return new ApiError(404, code, message, details);
   }
   /**
    * The report says a recording exists, but the stored object is gone.
@@ -42,14 +43,14 @@ export class ApiError extends Error {
   static audioNotRecorded(message = 'This report has no stored recording'): ApiError {
     return new ApiError(404, 'AUDIO_NOT_RECORDED', message);
   }
-  static conflict(message = 'Conflict'): ApiError {
-    return new ApiError(409, 'CONFLICT', message);
+  static conflict(message = 'Conflict', code = 'CONFLICT', details?: unknown): ApiError {
+    return new ApiError(409, code, message, details);
   }
-  static tooManyRequests(message = 'Too many requests, please try again later'): ApiError {
-    return new ApiError(429, 'RATE_LIMITED', message);
+  static tooManyRequests(message = 'Too many requests, please try again later', code = 'RATE_LIMITED', details?: unknown): ApiError {
+    return new ApiError(429, code, message, details);
   }
-  static serviceUnavailable(message = 'Service unavailable'): ApiError {
-    return new ApiError(503, 'SERVICE_UNAVAILABLE', message);
+  static serviceUnavailable(message = 'Service unavailable', code = 'SERVICE_UNAVAILABLE', details?: unknown): ApiError {
+    return new ApiError(503, code, message, details);
   }
 }
 

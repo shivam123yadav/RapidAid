@@ -30,7 +30,12 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // ── Known/expected errors ────────────────────────────────────────────
   if (err instanceof ApiError) {
     res.status(err.status).json({
-      error: { message: err.message, code: err.code, requestId },
+      error: {
+        message: err.message,
+        code: err.code,
+        requestId,
+        ...(err.details !== undefined ? { details: err.details } : {}),
+      },
     } satisfies ErrorBody);
     return;
   }

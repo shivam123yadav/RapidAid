@@ -154,7 +154,7 @@ authRouter.post(
 
     // Best-effort: a delivery failure must not fail the signup, and the user can
     // request a new link from the app.
-    await sendVerificationEmail({ _id: user._id, name: user.name, email: user.email });
+    const delivery = await sendVerificationEmail({ _id: user._id, name: user.name, email: user.email });
 
     const tokens = await issueTokens({ sub: user._id, role: user.role, name: user.name, email: user.email, ver: user.tokenVersion ?? 0 });
     setRefreshCookie(res, tokens.refreshToken);
@@ -169,7 +169,11 @@ authRouter.post(
       details: `Registered as ${role}`,
     });
 
-    res.status(201).json({ user: await toPublicUser(user), accessToken: tokens.accessToken });
+    res.status(201).json({
+      user: await toPublicUser(user),
+      accessToken: tokens.accessToken,
+      emailDelivery: delivery.delivered ? 'sent' : 'failed',
+    });
   }),
 );
 
@@ -340,7 +344,7 @@ authRouter.post(
       requestId: req.requestId,
     });
 
-    res.json({ success: true, message: result.message });
+    res.json({ success: true, message: result.message, delivered: result.delivered });
   }),
 );
 

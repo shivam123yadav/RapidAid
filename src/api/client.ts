@@ -55,6 +55,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code?: string,
     public readonly requestId?: string,
+    public readonly details?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -62,7 +63,7 @@ export class ApiError extends Error {
 }
 
 interface ErrorEnvelope {
-  error?: { message?: string; code?: string; requestId?: string };
+  error?: { message?: string; code?: string; requestId?: string; details?: unknown };
 }
 
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
@@ -107,11 +108,16 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
 
   if (!res.ok) {
     const envelope = (body ?? {}) as ErrorEnvelope;
+    const retryHeader = res.headers.get('retry-after');
+    const headerRetryAfter = retryHeader ? parseInt(retryHeader, 10) : undefined;
+    const details = envelope.error?.details ?? (headerRetryAfter ? { retryAfter: headerRetryAfter } : undefined);
+
     throw new ApiError(
       envelope.error?.message ?? `Request failed (${res.status})`,
       res.status,
       envelope.error?.code,
       envelope.error?.requestId ?? res.headers.get('x-request-id') ?? undefined,
+      details,
     );
   }
 
@@ -205,11 +211,11 @@ export const api = {
     login: (email: string, password: string, role: UserRole) =>
       post<{ user: PublicUser; accessToken: string }>('/auth/login', { email, password, role }),
     register: (data: { name: string; email: string; password: string; role: UserRole }) =>
-      post<{ user: PublicUser; accessToken: string }>('/auth/register', data),
+      post<{ user: PublicUser; accessToken: string; emailDelivery?: 'sent' | 'failed' }>('/auth/register', data),
     verifyEmail: (token: string) =>
       post<{ success: boolean; emailVerified: boolean }>('/auth/verify-email', { token }),
     resendVerification: () =>
-      post<{ success: boolean; message: string }>('/auth/resend-verification'),
+      post<{ success: boolean; message: string; delivered?: boolean }>('/auth/resend-verification'),
     forgotPassword: (email: string) =>
       post<{ success: boolean; message: string }>('/auth/forgot-password', { email }),
     resetPassword: (token: string, password: string) =>
