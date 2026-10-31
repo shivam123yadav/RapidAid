@@ -78,11 +78,14 @@ const EnvSchema = z.object({
   /**
    * Delivery strategy. `console` (the default) writes every message to the
    * server log instead of sending it, so verification and password-reset flows
-   * are fully exercisable with no provider account or API key. `smtp` uses the
-   * EMAIL_SMTP_* values below.
+   * are fully exercisable with no provider account or API key. `brevo_api` uses
+   * the official Brevo Transactional Email HTTPS API with BREVO_API_KEY.
+   * `smtp` uses the EMAIL_SMTP_* values below.
    */
-  EMAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
+  EMAIL_TRANSPORT: z.enum(['console', 'smtp', 'brevo_api']).default('console'),
   EMAIL_FROM: z.string().min(1).default('RapidAid <no-reply@rapidaid.com>'),
+  /** Brevo v3 API key for transactional email dispatch over HTTPS. */
+  BREVO_API_KEY: z.string().optional(),
   /** Base URL of the frontend, used to build links inside outgoing emails. */
   PUBLIC_URL: z.string().url().default('http://localhost:3000'),
   /** Lifetime of verification and password-reset links. */
@@ -198,6 +201,14 @@ if (env.EMAIL_TRANSPORT === 'smtp') {
   }
   if ((env.EMAIL_SMTP_USER && !env.EMAIL_SMTP_PASS) || (!env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS)) {
     console.error('❌ EMAIL_TRANSPORT=smtp requires both EMAIL_SMTP_USER and EMAIL_SMTP_PASS when SMTP authentication is used.');
+    process.exit(1);
+  }
+}
+
+if (env.EMAIL_TRANSPORT === 'brevo_api') {
+  if (!env.BREVO_API_KEY) {
+    console.error('❌ EMAIL_TRANSPORT=brevo_api requires BREVO_API_KEY.');
+    console.error('   Set BREVO_API_KEY in environment or Render dashboard, or use EMAIL_TRANSPORT=console for local development.');
     process.exit(1);
   }
 }

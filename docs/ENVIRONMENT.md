@@ -27,7 +27,9 @@ This document defines all configuration parameters, startup validation rules, an
 | **`ROUTING_PROVIDER_URL`** | `string` | Project OSRM | Optional | URL of routing service (use self-hosted OSRM in production). |
 | **`METRICS_SCRAPE_ENABLED`**| `boolean`| `false` | Optional | Enables Prometheus `/metrics` scraping endpoint. |
 | **`METRICS_SCRAPE_TOKEN`** | `string` | None | If scrape on | Bearer secret for `/metrics`. Min 16 chars; no weak patterns. |
-| **`EMAIL_TRANSPORT`** | `enum` | `console` | Optional | `console` (dev/test log) or `smtp` (real provider). |
+| **`EMAIL_TRANSPORT`** | `enum` | `console` | Optional | `console` (dev/test log), `brevo_api` (Brevo HTTPS REST API), or `smtp` (real provider). |
+| **`BREVO_API_KEY`** | `string` | None | If brevo_api on | Brevo account API key (starts with `xkeysib-`). Required when `EMAIL_TRANSPORT=brevo_api`. |
+| **`EMAIL_FROM`** | `string` | None | Optional | Display sender (e.g. `RapidAid Alerts <alerts@rapidaid.com>`). Must match verified sender in Brevo. |
 | **`EMAIL_SMTP_HOST`** | `string` | None | If smtp on | Hostname of SMTP provider (e.g. AWS SES, SendGrid). |
 | **`EMAIL_SMTP_PORT`** | `number` | `587` | If smtp on | SMTP port (`587` or `465`). |
 | **`EMAIL_SMTP_USER`** | `string` | None | If smtp on | SMTP username. |

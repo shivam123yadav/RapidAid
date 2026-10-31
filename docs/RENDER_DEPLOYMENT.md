@@ -69,6 +69,9 @@ Set these in the **Environment** tab of `rapidaid-api`:
 | **`LOG_LEVEL`** | `info` | Structured JSON log verbosity |
 | **`ROUTING_PROVIDER_TYPE`**| `osrm` | Road routing provider |
 | **`ROUTING_PROVIDER_URL`** | `https://router.project-osrm.org` | Routing provider endpoint (falls back safely to haversine) |
+| **`EMAIL_TRANSPORT`** | `brevo_api` | Bypasses Render SMTP port blocking via Brevo HTTPS REST API |
+| **`BREVO_API_KEY`** | `xkeysib-...` | Brevo API key secret (configure in Render Dashboard) |
+| **`EMAIL_FROM`** | `RapidAid Alerts <alerts@rapidaid-web.onrender.com>` | Sender address (must match verified sender in Brevo) |
 
 ---
 

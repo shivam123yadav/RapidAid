@@ -28,3 +28,29 @@ export interface EmailTransport {
    */
   send(message: EmailMessage): Promise<EmailSendResult>;
 }
+
+/**
+ * Thrown when a delivery failure is permanent (e.g. 4xx client/auth errors)
+ * or when the delivery status is uncertain (e.g. request timeout after payload transmission),
+ * indicating that the sender should NOT retry to avoid duplicate emails.
+ */
+export class NonRetryableDeliveryError extends Error {
+  readonly retryable = false;
+  constructor(message: string, public readonly statusCode?: number) {
+    super(message);
+    this.name = 'NonRetryableDeliveryError';
+  }
+}
+
+/**
+ * Thrown when an email transport responds with HTTP 429 Too Many Requests.
+ * Retryable up to MAX_ATTEMPTS, carrying an optional parsed Retry-After duration in milliseconds.
+ */
+export class RateLimitDeliveryError extends Error {
+  readonly retryable = true;
+  constructor(message: string, public readonly retryAfterMs?: number) {
+    super(message);
+    this.name = 'RateLimitDeliveryError';
+  }
+}
+

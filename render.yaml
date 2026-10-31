@@ -61,6 +61,13 @@ services:
         value: osrm
       - key: ROUTING_PROVIDER_URL
         value: https://router.project-osrm.org
+      # Transactional Email: Brevo HTTP API over HTTPS (bypasses Render SMTP port blocking)
+      - key: EMAIL_TRANSPORT
+        value: brevo_api
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: RapidAid Alerts <alerts@rapidaid-web.onrender.com>
 
   # ── Frontend: RapidAid React/Vite Static Site (Free Tier) ─────────────────
   - type: web

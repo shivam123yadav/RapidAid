@@ -16,6 +16,8 @@ export const REDACT_PATHS: string[] = [
   'req.headers["cookie"]',
   'req.headers["proxy-authorization"]',
   'req.headers["set-cookie"]',
+  'req.headers["api-key"]',
+  'req.headers.api-key',
   'res.headers["set-cookie"]',
   'headers.authorization',
   'headers["authorization"]',
@@ -23,6 +25,8 @@ export const REDACT_PATHS: string[] = [
   'headers["cookie"]',
   'headers["proxy-authorization"]',
   'headers["set-cookie"]',
+  'headers["api-key"]',
+  'headers.api-key',
 
   // Authentication credentials & secrets
   'password',
@@ -87,6 +91,14 @@ export const REDACT_PATHS: string[] = [
   '*.apikey',
   '*.*.apikey',
   '*.*.*.apikey',
+  'api-key',
+  '*.api-key',
+  '*.*.api-key',
+  '*.*.*.api-key',
+  'brevoApiKey',
+  '*.brevoApiKey',
+  '*.*.brevoApiKey',
+  '*.*.*.brevoApiKey',
   'sessionSecret',
   '*.sessionSecret',
   '*.*.sessionSecret',
@@ -217,6 +229,8 @@ export function sanitizeString(val: string): string {
     .replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/gi, '$1[REDACTED]$3')
     .replace(/(https?:\/\/[^:]+:)([^@]+)(@)/gi, '$1[REDACTED]$3')
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[REDACTED]')
+    .replace(/(xkeysib-[a-zA-Z0-9_-]+)/gi, '[REDACTED]')
+    .replace(/(api-key["']?\s*[:=]\s*["']?)([^"',;\s]+)(["']?)/gi, '$1[REDACTED]$3')
     .replace(/(password["']?\s*[:=]\s*["']?)([^"',;\s]+)(["']?)/gi, '$1[REDACTED]$3')
     .replace(/(token["']?\s*[:=]\s*["']?)([^"',;\s]+)(["']?)/gi, '$1[REDACTED]$3');
 }
@@ -232,6 +246,7 @@ export const reqSerializer: pino.SerializerFn = (req: unknown) => {
   const headers: Record<string, unknown> = { ...rawHeaders };
 
   if (headers.authorization) headers.authorization = REDACTED_VALUE;
+  if (headers['api-key']) headers['api-key'] = REDACTED_VALUE;
   if (headers.cookie) headers.cookie = REDACTED_VALUE;
   if (headers['proxy-authorization']) headers['proxy-authorization'] = REDACTED_VALUE;
   if (headers['set-cookie']) headers['set-cookie'] = REDACTED_VALUE;
@@ -282,7 +297,7 @@ export const errSerializer: pino.SerializerFn = (err: unknown) => {
   if (typeof serialized.stack === 'string') {
     serialized.stack = sanitizeString(serialized.stack);
   }
-  for (const key of ['password', 'token', 'secret', 'apiKey', 'keyValue', 'body', 'query']) {
+  for (const key of ['password', 'token', 'secret', 'apiKey', 'brevoApiKey', 'api-key', 'keyValue', 'body', 'query']) {
     if (key in serialized) {
       serialized[key] = REDACTED_VALUE;
     }
