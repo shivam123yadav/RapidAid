@@ -3,6 +3,7 @@ import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell,
+  CheckCircle2,
   ChevronRight,
   Command,
   Heart,
@@ -24,6 +25,7 @@ import { Button, buttonVariants } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ThemeButton } from '../theme/ThemeButton';
 import { useAuthStore } from '../../stores/auth';
+import { useAuthSync } from '../../hooks/useAuthSync';
 import { ROLE_LABELS, navGroupsFor, normalizePath, pageTitleFor } from '../../lib/navigation';
 import { PageTransition } from '../motion/PageTransition';
 
@@ -31,7 +33,7 @@ import { PageTransition } from '../motion/PageTransition';
 // src/lib/navigation.ts so the sidebar, the route guard and the command
 // palette always agree on who may open what.
 
-function SidebarFooter({ collapsed }: { collapsed: boolean }) {
+export function SidebarFooter({ collapsed }: { collapsed: boolean }) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
         <div className="flex flex-col items-center gap-2">
           <div
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-xs font-bold text-[var(--primary)]"
-            title={user ? `${user.name} · ${ROLE_LABELS[user.role]}` : undefined}
+            title={user ? `${user.name} · ${ROLE_LABELS[user.role]}${user.emailVerified ? ' · Email verified' : ''}` : undefined}
           >
             {initials}
           </div>
@@ -80,7 +82,19 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
-          <p className="truncate text-xs text-[var(--muted-foreground)]">{user?.email || 'RapidAid network'}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="truncate text-xs text-[var(--muted-foreground)]">{user?.email || 'RapidAid network'}</p>
+            {user?.emailVerified === true && (
+              <span
+                data-testid="email-verified-indicator"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--success,#10b981)]"
+                title="Email verified"
+              >
+                <CheckCircle2 size={12} className="shrink-0" />
+                <span>Email verified</span>
+              </span>
+            )}
+          </div>
         </div>
         <Button variant="ghost" size="iconSm" onClick={handleLogout} title="Sign out" aria-label="Sign out">
           <LogOut size={15} />
@@ -478,6 +492,7 @@ export function EmailVerificationBanner() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useAuthSync();
   const { sidebarCollapsed } = useUIStore();
   const location = useLocation();
 

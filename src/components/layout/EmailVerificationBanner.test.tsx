@@ -1,12 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { EmailVerificationBanner } from './AppShell';
-import { useAuthStore } from '../../stores/auth';
+import { render, screen, fireEvent, waitFor, act, renderHook } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppShell, EmailVerificationBanner, SidebarFooter } from './AppShell';
+import { useAuthStore, _resetRefreshThrottleForTest } from '../../stores/auth';
+import { useAuthSync } from '../../hooks/useAuthSync';
 import { api, ApiError } from '../../api/client';
 
-describe('EmailVerificationBanner', () => {
+describe('EmailVerificationBanner and useAuthSync', () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    _resetRefreshThrottleForTest();
+    localStorage.clear();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
     useAuthStore.setState({
       user: {
         id: 'u-123',
@@ -23,7 +35,18 @@ describe('EmailVerificationBanner', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    _resetRefreshThrottleForTest();
   });
+
+  const renderShell = (children?: React.ReactNode) => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AppShell>{children || <div data-testid="page-content">Dashboard Content</div>}</AppShell>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  };
 
   it('does not render if the user is already email verified', () => {
     useAuthStore.setState({
@@ -174,6 +197,261 @@ describe('EmailVerificationBanner', () => {
 
     await act(async () => {
       resolveResend({ success: true, message: 'Sent', delivered: true });
+    });
+  });
+
+  it('cleans up focus and visibilitychange event listeners when unmounted', () => {
+    const addWinSpy = vi.spyOn(window, 'addEventListener');
+    const remWinSpy = vi.spyOn(window, 'removeEventListener');
+    const addDocSpy = vi.spyOn(document, 'addEventListener');
+    const remDocSpy = vi.spyOn(document, 'removeEventListener');
+
+    const { unmount } = renderHook(() => useAuthSync());
+
+    expect(addWinSpy).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(addDocSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+
+    unmount();
+
+    expect(remWinSpy).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(remDocSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+  });
+
+  it('disappears when account status is refreshed after verification on another device', async () => {
+    vi.spyOn(api.auth, 'me').mockResolvedValue({
+      id: 'u-123',
+      name: 'Citizen Jane',
+      email: 'jane@rapidaid.com',
+      role: 'CITIZEN',
+      emailVerified: true,
+      permissions: [],
+    });
+
+    renderShell();
+    expect(screen.getByText(/verify your email address/i)).toBeInTheDocument();
+
+    // User verifies email on mobile and returns to desktop window (triggering focus)
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
+    });
+    expect(useAuthStore.getState().user?.emailVerified).toBe(true);
+  });
+
+  it('triggers account-status synchronization on window focus via AppShell', async () => {
+    const meSpy = vi.spyOn(api.auth, 'me').mockResolvedValue({
+      id: 'u-123',
+      name: 'Citizen Jane',
+      email: 'jane@rapidaid.com',
+      role: 'CITIZEN',
+      emailVerified: true,
+      permissions: [],
+    });
+
+    renderShell();
+    expect(screen.getByText(/verify your email address/i)).toBeInTheDocument();
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(meSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('triggers account-status synchronization on document visibility change when visible', async () => {
+    const meSpy = vi.spyOn(api.auth, 'me').mockResolvedValue({
+      id: 'u-123',
+      name: 'Citizen Jane',
+      email: 'jane@rapidaid.com',
+      role: 'CITIZEN',
+      emailVerified: true,
+      permissions: [],
+    });
+
+    renderShell();
+
+    // Switching back to tab (visibilityState becomes 'visible')
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true,
+    });
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(meSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('does NOT trigger account-status synchronization on visibility change when document is hidden', async () => {
+    const meSpy = vi.spyOn(api.auth, 'me').mockResolvedValue({
+      id: 'u-123',
+      name: 'Citizen Jane',
+      email: 'jane@rapidaid.com',
+      role: 'CITIZEN',
+      emailVerified: true,
+      permissions: [],
+    });
+
+    renderShell();
+
+    // Tab is hidden in background
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'hidden',
+      configurable: true,
+    });
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    expect(meSpy).not.toHaveBeenCalled();
+    expect(screen.getByText(/verify your email address/i)).toBeInTheDocument();
+  });
+
+  it('preserves user state and does not falsely mark verified if profile refresh fails', async () => {
+    const meSpy = vi.spyOn(api.auth, 'me').mockRejectedValue(new Error('Network error'));
+
+    renderShell();
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(meSpy).toHaveBeenCalled();
+    // User remains unverified and still authenticated
+    expect(useAuthStore.getState().user?.emailVerified).toBe(false);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    // Banner remains visible
+    expect(screen.getByText(/verify your email address/i)).toBeInTheDocument();
+  });
+
+  it('updates the persisted Zustand state correctly when refreshUser succeeds', async () => {
+    vi.spyOn(api.auth, 'me').mockResolvedValue({
+      id: 'u-123',
+      name: 'Citizen Jane Updated',
+      email: 'jane@rapidaid.com',
+      role: 'CITIZEN',
+      emailVerified: true,
+      permissions: ['read:profile'],
+    });
+
+    await act(async () => {
+      await useAuthStore.getState().refreshUser();
+    });
+
+    const user = useAuthStore.getState().user;
+    expect(user?.emailVerified).toBe(true);
+    expect(user?.name).toBe('Citizen Jane Updated');
+
+    // Confirm persisted state in localStorage matches ('rapidaid-auth')
+    const stored = JSON.parse(localStorage.getItem('rapidaid-auth') || '{}');
+    expect(stored.state?.user?.emailVerified).toBe(true);
+    expect(stored.state?.user?.name).toBe('Citizen Jane Updated');
+  });
+
+  it('displays green verified indicator beside email in SidebarFooter when verified', () => {
+    useAuthStore.setState({
+      user: {
+        id: 'u-123',
+        name: 'Citizen Jane',
+        email: 'jane@rapidaid.com',
+        role: 'CITIZEN',
+        emailVerified: true,
+        permissions: [],
+      },
+      isAuthenticated: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <SidebarFooter collapsed={false} />
+      </MemoryRouter>,
+    );
+
+    const indicator = screen.getByTestId('email-verified-indicator');
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).toHaveTextContent(/email verified/i);
+    expect(screen.getByText('jane@rapidaid.com')).toBeInTheDocument();
+  });
+
+  it('does NOT display verified indicator in SidebarFooter when unverified', () => {
+    render(
+      <MemoryRouter>
+        <SidebarFooter collapsed={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('email-verified-indicator')).not.toBeInTheDocument();
+    expect(screen.queryByText(/email verified/i)).not.toBeInTheDocument();
+    expect(screen.getByText('jane@rapidaid.com')).toBeInTheDocument();
+  });
+
+  it('verified status remains correct after navigating between dashboard pages', async () => {
+    useAuthStore.setState({
+      user: {
+        id: 'u-123',
+        name: 'Citizen Jane',
+        email: 'jane@rapidaid.com',
+        role: 'CITIZEN',
+        emailVerified: true,
+        permissions: [],
+      },
+      isAuthenticated: true,
+    });
+
+    // Mount on page A
+    const { unmount } = renderShell(<div>Page A</div>);
+    expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
+    unmount();
+
+    // Navigate to page B
+    renderShell(<div>Page B</div>);
+    expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
+    expect(useAuthStore.getState().user?.emailVerified).toBe(true);
+  });
+
+  it('coalesces concurrent refreshUser calls and rapid focus/visibility events into a single API request', async () => {
+    let resolveMe!: (val: any) => void;
+    const mePromise = new Promise((resolve) => {
+      resolveMe = resolve;
+    });
+    const meSpy = vi.spyOn(api.auth, 'me').mockReturnValue(mePromise as any);
+
+    renderShell();
+
+    // Fire focus, visibilitychange, and direct refreshUser simultaneously
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      useAuthStore.getState().refreshUser();
+    });
+
+    // Exactly 1 network request was initiated
+    expect(meSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMe({
+        id: 'u-123',
+        name: 'Citizen Jane',
+        email: 'jane@rapidaid.com',
+        role: 'CITIZEN',
+        emailVerified: true,
+        permissions: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/verify your email address/i)).not.toBeInTheDocument();
     });
   });
 });

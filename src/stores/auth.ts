@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { api, type PublicUser } from '../api/client';
+import { api, ApiError, type PublicUser } from '../api/client';
 import { session } from '../api/session';
 import type { UserRole } from '../types';
 
@@ -26,15 +26,32 @@ interface AuthState {
    * grants a permission, and the server re-derives the real claim on every call.
    */
   setUser: (patch: Partial<PublicUser>) => void;
+  /**
+   * Queries GET /api/auth/me to synchronize the authenticated user's profile and
+   * authoritative email verification status without reloading the page.
+   *
+   * Coalesces concurrent calls and applies a 1-second throttle to avoid redundant
+   * API requests when multiple focus/visibilitychange events fire together.
+   */
+  refreshUser: (force?: boolean) => Promise<PublicUser | null>;
   logout: () => Promise<void>;
 }
 
 let lastLoginError: string | null = null;
 export const getLoginError = (): string | null => lastLoginError;
 
+let inFlightRefresh: Promise<PublicUser | null> | null = null;
+let lastRefreshTime = 0;
+
+/** Exposed strictly for unit tests to reset the focus/visibility throttle. */
+export const _resetRefreshThrottleForTest = (): void => {
+  lastRefreshTime = 0;
+  inFlightRefresh = null;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isAuthenticated: false,
       user: null,
       registrationEmailDelivery: null,
@@ -77,6 +94,62 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (patch: Partial<PublicUser>) => {
         set((state) => (state.user ? { user: { ...state.user, ...patch } } : state));
+      },
+
+      refreshUser: async (force = false): Promise<PublicUser | null> => {
+        const state = get();
+        if (!state.isAuthenticated || !state.user) return null;
+
+        // Coalesce concurrent calls into a single network flight
+        if (inFlightRefresh) return inFlightRefresh;
+
+        // Throttle back-to-back calls within 1 second to avoid redundant server roundtrips
+        const now = Date.now();
+        if (!force && now - lastRefreshTime < 1000) {
+          return state.user;
+        }
+
+        inFlightRefresh = (async () => {
+          try {
+            let freshUser: PublicUser;
+            try {
+              freshUser = await api.auth.me();
+            } catch (err) {
+              // If the access token expired while away, silently refresh once before failing
+              if (err instanceof ApiError && err.status === 401) {
+                const refreshed = await session.refresh();
+                if (refreshed) {
+                  freshUser = await api.auth.me();
+                } else {
+                  return get().user;
+                }
+              } else {
+                return get().user;
+              }
+            }
+
+            lastRefreshTime = Date.now();
+            if (freshUser && typeof freshUser === 'object') {
+              set((curr) => {
+                if (!curr.user) return curr;
+                return {
+                  user: { ...curr.user, ...freshUser },
+                  registrationEmailDelivery: freshUser.emailVerified ? null : curr.registrationEmailDelivery,
+                };
+              });
+              return freshUser;
+            }
+            return get().user;
+          } catch {
+            // Requirement 4: Preserve last known authenticated user state when refresh fails.
+            // Do not falsely mark verified. Do not log user out or interrupt session.
+            return get().user;
+          } finally {
+            inFlightRefresh = null;
+          }
+        })();
+
+        return inFlightRefresh;
       },
 
       logout: async (): Promise<void> => {

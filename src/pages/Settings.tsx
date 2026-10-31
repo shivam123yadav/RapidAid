@@ -118,7 +118,19 @@ export function SettingsPage() {
               </div>
               <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2.5">
                 <span className="text-[var(--muted-foreground)]">Email</span>
-                <span className="max-w-[60%] truncate text-right font-medium">{user?.email ?? '—'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="max-w-[60%] truncate text-right font-medium">{user?.email ?? '—'}</span>
+                  {user?.emailVerified === true && (
+                    <span
+                      data-testid="settings-email-verified-badge"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--success,#10b981)]"
+                      title="Email verified"
+                    >
+                      <CheckCircle2 size={13} className="shrink-0 text-[var(--success,#10b981)]" />
+                      <span>Email verified</span>
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between gap-3 py-2.5">
                 <span className="text-[var(--muted-foreground)]">Organization</span>
