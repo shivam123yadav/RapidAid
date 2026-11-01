@@ -9,6 +9,10 @@ import {
   startAmbulanceReconciliationScheduler,
   stopAmbulanceReconciliationScheduler,
 } from './services/emergencyService.js';
+import {
+  startHospitalReservationReconciliationScheduler,
+  stopHospitalReservationReconciliationScheduler,
+} from './services/hospitalReservationService.js';
 import { reconcileVoiceConfirmations } from './services/voiceEmergencyService.js';
 import { isAppShuttingDown, setAppShuttingDown } from './config/lifecycle.js';
 
@@ -44,6 +48,9 @@ async function main(): Promise<void> {
 
   // Start periodic 10-minute ambulance reconciliation sweeper with initial jitter
   startAmbulanceReconciliationScheduler();
+
+  // Start periodic hospital reservation reconciliation sweeper with jitter and staging safeguards
+  startHospitalReservationReconciliationScheduler();
 
   if (env.SEED_IF_EMPTY) {
     await seedIfEmpty();
@@ -97,7 +104,10 @@ export async function executeGracefulShutdown(options?: ShutdownOptions): Promis
   const exit = options?.exitProcess ?? process.exit;
 
   try {
-    await stopAmbulanceReconciliationScheduler(gracePeriod);
+    await Promise.allSettled([
+      stopAmbulanceReconciliationScheduler(gracePeriod),
+      stopHospitalReservationReconciliationScheduler(gracePeriod),
+    ]);
     await disconnect();
     logger.info('Shutdown complete');
     exit(0);

@@ -12,6 +12,10 @@ import {
   geocodeSpokenLocation,
   invalidateGazetteerCache,
 } from '../src/services/geocodingService.js';
+import {
+  TARGET_STAGING_DB,
+  assertGwaliorSeedTargetDatabase,
+} from '../scripts/run-seed-gwalior.js';
 import { Hospital } from '../src/models/index.js';
 import { haversineMeters } from '../src/utils/geo.js';
 
@@ -82,6 +86,35 @@ describe('Gwalior Staging Demo Integration — Safety & Eligibility Unit Tests',
           configurable: true,
         });
       }
+    });
+
+    it('enforces that the targeted CLI entry point proceeds ONLY on "rapidaid_staging"', () => {
+      expect(TARGET_STAGING_DB).toBe('rapidaid_staging');
+      expect(() => assertGwaliorSeedTargetDatabase('rapidaid_staging')).not.toThrow();
+    });
+
+    it('aborts targeted CLI entry point for rapidaid, rapidaid_phase1_test, rapidaid_test, and other databases', () => {
+      expect(() => assertGwaliorSeedTargetDatabase('rapidaid')).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase('rapidaid_phase1_test')).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase('rapidaid_test')).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase('custom_db')).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase('')).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase(undefined)).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
+      expect(() => assertGwaliorSeedTargetDatabase(null)).toThrowError(
+        /Safety restriction violated: The targeted Gwalior seed CLI script is restricted exclusively to 'rapidaid_staging'/i,
+      );
     });
   });
 

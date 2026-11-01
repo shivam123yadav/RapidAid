@@ -311,8 +311,11 @@ hospitalsRouter.post(
   '/reconcile-reservations',
   authenticate,
   requirePermission(P.DISPATCH_ASSIGN, P.SETTINGS_OPERATIONAL),
-  asyncHandler(async (_req, res) => {
-    const outcome = await reconcileHospitalReservations();
+  asyncHandler(async (req, res) => {
+    const outcome = await reconcileHospitalReservations({
+      hospitalId: typeof req.body?.hospitalId === 'string' ? req.body.hospitalId : undefined,
+      excludeEmergencyIds: Array.isArray(req.body?.excludeEmergencyIds) ? req.body.excludeEmergencyIds : undefined,
+    });
     res.json({ success: true, ...outcome });
   }),
 );

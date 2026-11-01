@@ -59,6 +59,10 @@ const EnvSchema = z.object({
   ROUTING_DEVIATION_THRESHOLD_METERS: z.coerce.number().int().min(20).max(5000).default(100),
   ROUTING_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(4000),
 
+  // ── Hospital Reservation Reconciliation ──────────────────────────────────
+  HOSPITAL_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().min(1000).default(5 * 60 * 1000),
+  RAPIDAID_HOSPITAL_RECONCILIATION_EXCLUDED_EMERGENCIES: z.string().optional(),
+
   // ── Metrics & Observability ──────────────────────────────────────────────
   /**
    * Enables the dedicated Prometheus scraper endpoint (GET /metrics).

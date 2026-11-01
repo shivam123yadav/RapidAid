@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import mongoose from 'mongoose';
 import { Hospital, HospitalReservation, Emergency, Ambulance, type HospitalReservationDoc } from '../models/index.js';
 import { ApiError } from '../utils/errors.js';
 import { recordAudit } from './auditService.js';
 import { acquireSchedulerLock, releaseSchedulerLock } from './distributedLock.js';
 import type { Role, HospitalResourceType, ReservationStatus } from '../validation/constants.js';
+import { logger } from '../config/logger.js';
+import { env, isTest } from '../config/env.js';
 import {
   notifyCitizenOnHospitalRerouted,
   notifyCrewOnHospitalRerouted,
@@ -67,6 +70,14 @@ export interface ReleaseReservationResult {
   status?: ReservationStatus;
   reason?: string;
 }
+
+export interface HospitalReconciliationOptions {
+  batchSize?: number;
+  gracePeriodMs?: number;
+  hospitalId?: string;
+  excludeEmergencyIds?: string[];
+}
+export type ReconciliationOptions = HospitalReconciliationOptions;
 
 export interface ReconciliationResult {
   expiredCount: number;
@@ -599,15 +610,82 @@ export async function rerouteHospitalReservation(
 }
 
 /**
+ * Resolves effective excluded emergency IDs from explicit options or environment configuration.
+ */
+export function getEffectiveHospitalReconciliationExclusions(explicitExclusions?: string[]): string[] {
+  if (explicitExclusions && explicitExclusions.length > 0) {
+    return [...new Set(explicitExclusions.filter((id) => typeof id === 'string' && /^EMG-\d{1,10}$/.test(id.trim())))];
+  }
+  const envVal = process.env.RAPIDAID_HOSPITAL_RECONCILIATION_EXCLUDED_EMERGENCIES;
+  if (envVal) {
+    return [...new Set(envVal.split(',').map((id) => id.trim()).filter((id) => /^EMG-\d{1,10}$/.test(id)))];
+  }
+  return [];
+}
+
+/**
+ * Validates staging environment configuration.
+ * In rapidaid_staging, fail closed if RAPIDAID_HOSPITAL_RECONCILIATION_EXCLUDED_EMERGENCIES
+ * is missing or does not protect the required demo emergencies.
+ */
+export function validateStagingExclusionConfiguration(
+  dbName?: string | null,
+  customExclusions?: string[],
+): {
+  valid: boolean;
+  exclusions: string[];
+  error?: string;
+} {
+  const currentDb = dbName ?? (mongoose.connection?.readyState === 1 ? mongoose.connection.name : null);
+  const isStaging = currentDb === 'rapidaid_staging';
+  const exclusions = customExclusions ?? getEffectiveHospitalReconciliationExclusions();
+
+  if (isStaging) {
+    if (exclusions.length === 0) {
+      return {
+        valid: false,
+        exclusions: [],
+        error: 'RAPIDAID_HOSPITAL_RECONCILIATION_EXCLUDED_EMERGENCIES must be configured in rapidaid_staging (fail-closed)',
+      };
+    }
+    const required = ['EMG-00001', 'EMG-20485'];
+    const missing = required.filter((r) => !exclusions.includes(r));
+    if (missing.length > 0) {
+      return {
+        valid: false,
+        exclusions,
+        error: `Staging exclusions missing mandatory protected emergencies: ${missing.join(', ')}`,
+      };
+    }
+  }
+
+  return { valid: true, exclusions };
+}
+
+/**
  * Reconciles expired, orphaned, and interrupted hospital reservations.
  * 
  * Concurrency Safe: Uses single-document atomic CAS so multiple reconciliation
  * workers can run simultaneously without race conditions or double-compensation.
  */
-export async function reconcileHospitalReservations(options?: {
-  batchSize?: number;
-  gracePeriodMs?: number;
-}): Promise<ReconciliationResult> {
+export async function reconcileHospitalReservations(
+  options?: HospitalReconciliationOptions,
+): Promise<ReconciliationResult> {
+  const currentDb = mongoose.connection?.readyState === 1 ? mongoose.connection.name : null;
+  const validation = validateStagingExclusionConfiguration(currentDb);
+  if (!validation.valid) {
+    logger.error(
+      { error: validation.error, database: currentDb },
+      'Safety violation: Hospital reconciliation aborted due to invalid staging exclusion configuration',
+    );
+    throw ApiError.serviceUnavailable(`Hospital reconciliation safety block: ${validation.error}`);
+  }
+
+  const effectiveOptions: HospitalReconciliationOptions = {
+    ...options,
+    excludeEmergencyIds: options?.excludeEmergencyIds ?? validation.exclusions,
+  };
+
   const lockId = 'hospital_reconciliation_lock';
   const ownerToken = `worker_${process.pid}_${randomUUID().slice(0, 6)}`;
 
@@ -625,7 +703,7 @@ export async function reconcileHospitalReservations(options?: {
   }
 
   try {
-    return await executeReconciliationScan(options);
+    return await executeReconciliationScan(effectiveOptions);
   } finally {
     if (lock.fenceToken) {
       await releaseSchedulerLock(lockId, ownerToken, lock.fenceToken);
@@ -634,16 +712,16 @@ export async function reconcileHospitalReservations(options?: {
 }
 
 /**
- * Core reconciliation scan execution.
+ * Core reconciliation scan execution with scoping support.
  */
-async function executeReconciliationScan(options?: {
-  batchSize?: number;
-  gracePeriodMs?: number;
-}): Promise<ReconciliationResult> {
+async function executeReconciliationScan(options?: HospitalReconciliationOptions): Promise<ReconciliationResult> {
   const now = new Date();
   const batchSize = options?.batchSize ?? 100;
   const gracePeriodMs = options?.gracePeriodMs ?? DEFAULT_IN_FLIGHT_RESERVATION_GRACE_MS;
   const activeCutoff = new Date(now.getTime() - gracePeriodMs);
+
+  const effectiveExclusions = options?.excludeEmergencyIds ?? [];
+  const hospitalScope = options?.hospitalId;
 
   const reconciledReservations: string[] = [];
   const skippedActive: string[] = [];
@@ -653,10 +731,14 @@ async function executeReconciliationScan(options?: {
   let danglingClaimsRecoveredCount = 0;
 
   // 1. Expired reservations: status PENDING/CONFIRMED and expiresAt <= now
-  const expiredDocs = await HospitalReservation.find({
+  const expiredFilter: Record<string, unknown> = {
     status: { $in: ['PENDING', 'CONFIRMED'] },
     expiresAt: { $lte: now },
-  })
+  };
+  if (hospitalScope) expiredFilter.hospitalId = hospitalScope;
+  if (effectiveExclusions.length > 0) expiredFilter.emergencyId = { $nin: effectiveExclusions };
+
+  const expiredDocs = await HospitalReservation.find(expiredFilter)
     .limit(batchSize)
     .lean();
 
@@ -673,11 +755,15 @@ async function executeReconciliationScan(options?: {
 
   // 2. Interrupted uncompensated terminal reservations:
   // (Process died after reservation marked terminal, before Hospital compensation finished)
-  const uncompensatedTerminals = await HospitalReservation.find({
+  const uncompensatedFilter: Record<string, unknown> = {
     status: { $in: ['RELEASED', 'CANCELLED', 'COMPLETED', 'EXPIRED'] },
     capacityApplied: true,
     capacityCompensated: false,
-  })
+  };
+  if (hospitalScope) uncompensatedFilter.hospitalId = hospitalScope;
+  if (effectiveExclusions.length > 0) uncompensatedFilter.emergencyId = { $nin: effectiveExclusions };
+
+  const uncompensatedTerminals = await HospitalReservation.find(uncompensatedFilter)
     .limit(batchSize)
     .lean();
 
@@ -694,10 +780,14 @@ async function executeReconciliationScan(options?: {
 
   // 3. Interrupted PENDING reservations:
   // (Process died during reservation creation before CONFIRMED)
-  const pendingDocs = await HospitalReservation.find({
+  const pendingFilter: Record<string, unknown> = {
     status: 'PENDING',
     createdAt: { $lte: activeCutoff },
-  })
+  };
+  if (hospitalScope) pendingFilter.hospitalId = hospitalScope;
+  if (effectiveExclusions.length > 0) pendingFilter.emergencyId = { $nin: effectiveExclusions };
+
+  const pendingDocs = await HospitalReservation.find(pendingFilter)
     .limit(batchSize)
     .lean();
 
@@ -730,11 +820,15 @@ async function executeReconciliationScan(options?: {
   }
 
   // 4. Orphaned reservations: active reservations whose emergency is terminal, rerouted, or deleted
-  const activeDocs = await HospitalReservation.find({
+  const activeFilter: Record<string, unknown> = {
     status: 'CONFIRMED',
     expiresAt: { $gt: now },
     createdAt: { $lte: activeCutoff }, // Skip fresh in-flight reservations within grace period
-  })
+  };
+  if (hospitalScope) activeFilter.hospitalId = hospitalScope;
+  if (effectiveExclusions.length > 0) activeFilter.emergencyId = { $nin: effectiveExclusions };
+
+  const activeDocs = await HospitalReservation.find(activeFilter)
     .limit(batchSize)
     .lean();
 
@@ -799,13 +893,27 @@ async function executeReconciliationScan(options?: {
 
   // 5. Applied capacity with NO persisted reservation document:
   // Inspect hospitals with activeReservationIds and recover dangling IDs
-  const hospitalsWithClaims = await Hospital.find({
+  const hospFilter: Record<string, unknown> = {
     activeReservationIds: { $exists: true, $ne: [] },
-  }).lean();
+  };
+  if (hospitalScope) {
+    hospFilter._id = hospitalScope;
+  }
+  const hospitalsWithClaims = await Hospital.find(hospFilter).lean();
 
   for (const hosp of hospitalsWithClaims) {
     const claimIds = hosp.activeReservationIds ?? [];
     for (const claimId of claimIds) {
+      if (effectiveExclusions.length > 0) {
+        const isExcluded = await HospitalReservation.exists({
+          _id: claimId,
+          emergencyId: { $in: effectiveExclusions },
+        });
+        if (isExcluded) {
+          continue; // Protected
+        }
+      }
+
       const reservationExists = await HospitalReservation.exists({ _id: claimId });
       if (!reservationExists) {
         // Orphaned claim with no reservation document -> remove and compensate inferred resource
@@ -848,8 +956,12 @@ async function executeReconciliationScan(options?: {
   }
 
   // 6. Guarantee non-negative incoming ambulances bound
+  const nonNegativeQuery: Record<string, unknown> = { incomingAmbulances: { $lt: 0 } };
+  if (hospitalScope) {
+    nonNegativeQuery._id = hospitalScope;
+  }
   await Hospital.updateMany(
-    { incomingAmbulances: { $lt: 0 } },
+    nonNegativeQuery,
     { $set: { incomingAmbulances: 0 } },
   ).exec();
 
@@ -861,4 +973,218 @@ async function executeReconciliationScan(options?: {
     reconciledReservations,
     skippedActive,
   };
+}
+
+let hospitalReconciliationIntervalTimer: NodeJS.Timeout | null = null;
+let hospitalReconciliationInitialTimer: NodeJS.Timeout | null = null;
+let activeHospitalSweepPromise: Promise<ReconciliationResult> | null = null;
+let isHospitalReconciliationShuttingDown = false;
+let hospitalReconciliationShutdownPromise: Promise<void> | null = null;
+
+export function isHospitalReservationSchedulerRunning(): boolean {
+  return hospitalReconciliationIntervalTimer !== null || hospitalReconciliationInitialTimer !== null;
+}
+
+export function isHospitalReservationSchedulerShuttingDown(): boolean {
+  return isHospitalReconciliationShuttingDown;
+}
+
+export function setHospitalReservationSchedulerShutdown(shuttingDown: boolean): void {
+  if (!shuttingDown && !isTest && isHospitalReconciliationShuttingDown) {
+    logger.warn('Ignoring attempt to reverse hospital reservation scheduler shutdown state in production');
+    return;
+  }
+  isHospitalReconciliationShuttingDown = shuttingDown;
+  if (!shuttingDown) {
+    hospitalReconciliationShutdownPromise = null;
+  }
+}
+
+export function runHospitalReservationReconciliationSweep(
+  options?: HospitalReconciliationOptions,
+): Promise<ReconciliationResult> {
+  if (isHospitalReconciliationShuttingDown) {
+    const err = ApiError.serviceUnavailable('Hospital reservation reconciliation is unavailable: server is shutting down');
+    return Promise.reject(err);
+  }
+
+  if (activeHospitalSweepPromise) {
+    logger.warn('Hospital reservation reconciliation sweep already in progress; reusing active sweep');
+    return activeHospitalSweepPromise;
+  }
+
+  const startTime = Date.now();
+  const sweep = (async (): Promise<ReconciliationResult> => {
+    try {
+      logger.info('Hospital reservation reconciliation sweep started');
+      const outcome = await reconcileHospitalReservations(options);
+      const durationMs = Date.now() - startTime;
+      logger.info(
+        {
+          durationMs,
+          expiredCount: outcome.expiredCount,
+          orphanedCount: outcome.orphanedCount,
+          interruptedCount: outcome.interruptedCount,
+          danglingClaimsRecoveredCount: outcome.danglingClaimsRecoveredCount,
+          reconciledIds: outcome.reconciledReservations,
+          skippedActiveCount: outcome.skippedActive.length,
+        },
+        'Hospital reservation reconciliation sweep completed successfully',
+      );
+      return outcome;
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      logger.error(
+        { err, durationMs },
+        'Hospital reservation reconciliation sweep encountered an error; will retry on next schedule',
+      );
+      throw err;
+    } finally {
+      activeHospitalSweepPromise = null;
+    }
+  })();
+
+  activeHospitalSweepPromise = sweep;
+  return sweep;
+}
+
+export interface HospitalSchedulerStartOptions {
+  intervalMs?: number;
+  initialJitterMs?: number;
+  options?: HospitalReconciliationOptions;
+}
+
+export function startHospitalReservationReconciliationScheduler(
+  intervalOrConfig?: number | HospitalSchedulerStartOptions,
+  initialJitterMsParam?: number,
+  reconciliationOptionsParam?: HospitalReconciliationOptions,
+): void {
+  let intervalMs = env.HOSPITAL_RECONCILIATION_INTERVAL_MS;
+  let initialJitterMs: number | undefined = initialJitterMsParam;
+  let options: HospitalReconciliationOptions | undefined = reconciliationOptionsParam;
+
+  if (typeof intervalOrConfig === 'number') {
+    intervalMs = intervalOrConfig;
+  } else if (intervalOrConfig && typeof intervalOrConfig === 'object') {
+    if (typeof intervalOrConfig.intervalMs === 'number') {
+      intervalMs = intervalOrConfig.intervalMs;
+    }
+    if (typeof intervalOrConfig.initialJitterMs === 'number') {
+      initialJitterMs = intervalOrConfig.initialJitterMs;
+    }
+    if (intervalOrConfig.options) {
+      options = intervalOrConfig.options;
+    }
+  }
+  if (isHospitalReconciliationShuttingDown && !isTest) {
+    logger.warn('Cannot start hospital reservation reconciliation scheduler: server is in shutdown state');
+    return;
+  }
+
+  // Database readiness check
+  if (mongoose.connection?.readyState !== 1) {
+    logger.warn('Cannot start hospital reservation reconciliation scheduler: database is not connected');
+    return;
+  }
+
+  // Validate staging safety configuration (fail closed)
+  const currentDb = mongoose.connection.name;
+  const validation = validateStagingExclusionConfiguration(currentDb);
+  if (!validation.valid) {
+    logger.error(
+      { error: validation.error, database: currentDb },
+      'FATAL: Hospital reservation reconciliation scheduler refused to start due to invalid staging exclusion configuration',
+    );
+    return;
+  }
+
+  isHospitalReconciliationShuttingDown = false;
+  hospitalReconciliationShutdownPromise = null;
+
+  // Clear any existing active schedule (idempotent startup)
+  if (hospitalReconciliationInitialTimer) {
+    clearTimeout(hospitalReconciliationInitialTimer);
+    hospitalReconciliationInitialTimer = null;
+  }
+  if (hospitalReconciliationIntervalTimer) {
+    clearInterval(hospitalReconciliationIntervalTimer);
+    hospitalReconciliationIntervalTimer = null;
+  }
+
+  const jitter = initialJitterMs !== undefined ? initialJitterMs : (isTest ? 0 : Math.floor(Math.random() * 15_000));
+
+  hospitalReconciliationInitialTimer = setTimeout(() => {
+    hospitalReconciliationInitialTimer = null;
+    if (isHospitalReconciliationShuttingDown) return;
+
+    runHospitalReservationReconciliationSweep(options).catch((err) => {
+      logger.error({ err }, 'Initial scheduled hospital reservation reconciliation sweep failed');
+    });
+
+    hospitalReconciliationIntervalTimer = setInterval(() => {
+      if (isHospitalReconciliationShuttingDown) return;
+      runHospitalReservationReconciliationSweep(options).catch((err) => {
+        logger.error({ err }, 'Periodic scheduled hospital reservation reconciliation sweep failed');
+      });
+    }, intervalMs);
+
+    if (typeof hospitalReconciliationIntervalTimer.unref === 'function') {
+      hospitalReconciliationIntervalTimer.unref();
+    }
+  }, jitter);
+
+  if (typeof hospitalReconciliationInitialTimer.unref === 'function') {
+    hospitalReconciliationInitialTimer.unref();
+  }
+
+  logger.info(
+    { intervalMs, initialJitterMs: jitter, effectiveExclusions: validation.exclusions },
+    'Periodic hospital reservation reconciliation scheduler initialized',
+  );
+}
+
+export function stopHospitalReservationReconciliationScheduler(gracePeriodMs = 5_000): Promise<void> {
+  if (hospitalReconciliationShutdownPromise) {
+    return hospitalReconciliationShutdownPromise;
+  }
+
+  hospitalReconciliationShutdownPromise = (async () => {
+    isHospitalReconciliationShuttingDown = true;
+
+    if (hospitalReconciliationInitialTimer) {
+      clearTimeout(hospitalReconciliationInitialTimer);
+      hospitalReconciliationInitialTimer = null;
+    }
+    if (hospitalReconciliationIntervalTimer) {
+      clearInterval(hospitalReconciliationIntervalTimer);
+      hospitalReconciliationIntervalTimer = null;
+    }
+
+    if (activeHospitalSweepPromise) {
+      logger.info('Awaiting in-flight hospital reservation reconciliation sweep to drain before shutdown');
+
+      let timedOut = false;
+      const timeoutPromise = new Promise<'timeout'>((resolve) => {
+        setTimeout(() => {
+          timedOut = true;
+          resolve('timeout');
+        }, gracePeriodMs).unref();
+      });
+
+      const outcome = await Promise.race([
+        activeHospitalSweepPromise.then(() => 'drained' as const).catch(() => 'drained' as const),
+        timeoutPromise,
+      ]);
+
+      if (outcome === 'timeout' || timedOut) {
+        const drainErr = new Error(
+          `Hospital reservation reconciliation sweep failed to drain within ${gracePeriodMs}ms`,
+        );
+        (drainErr as any).isDrainTimeout = true;
+        throw drainErr;
+      }
+    }
+  })();
+
+  return hospitalReconciliationShutdownPromise;
 }
