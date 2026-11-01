@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { createApp } from '../src/app.js';
-import { shutdownReconciliationAndDB } from '../src/index.js';
+import { shutdownReconciliationAndDB, resetAppShuttingDown } from '../src/index.js';
 import { formatScopedIdempotencyKey } from '../src/middleware/idempotency.js';
 import { runSeed } from '../src/seed/seed.js';
 import { useTestDatabase } from './setup.js';
@@ -986,6 +986,7 @@ describe('Milestone 2.1: Operational Hardening', () => {
         } finally {
           (Ambulance as unknown as { find: unknown }).find = originalFind;
           setReconciliationShutdown(false);
+          resetAppShuttingDown();
         }
       });
 

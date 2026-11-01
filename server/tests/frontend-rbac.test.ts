@@ -132,11 +132,30 @@ describe('RBAC scenarios 9, 12–14', () => {
     });
 
     it('enforces the same rule server-side, not just in the router', async () => {
-      // The UI guard is UX; the API is the real authority. A citizen who types
-      // the URL, or calls the endpoint directly, still gets 403.
+      // Unauthenticated callers are rejected at the gateway.
+      expect((await request(app).get('/api/ambulances')).status).toBe(401);
+
+      // The UI guard is UX; the API is the real authority. A citizen attempting
+      // administrative or audit access receives 403.
       const citizen = await loginAs(app, 'citizen');
-      expect((await request(app).get('/api/ambulances').set(bearer(citizen))).status).toBe(403);
       expect((await request(app).get('/api/audit').set(bearer(citizen))).status).toBe(403);
+      expect((await request(app).get('/api/cameras').set(bearer(citizen))).status).toBe(403);
+      expect((await request(app).post('/api/ambulances').set(bearer(citizen)).send({ location: { lat: 28.6, lng: 77.2 } })).status).toBe(403);
+
+      // Under Phase 4 live tracking, citizens may read only their assigned responding ambulance.
+      const ambRes = await request(app).get('/api/ambulances').set(bearer(citizen));
+      expect(ambRes.status).toBe(200);
+      expect(ambRes.body).toHaveLength(1);
+      expect(ambRes.body[0].id).toBe('AMB-023');
+
+      // Probing other fleet ambulances directly returns 404 (hiding their existence).
+      expect((await request(app).get('/api/ambulances/AMB-005').set(bearer(citizen))).status).toBe(404);
+
+      // Dispatchers and supervisors retain full fleet visibility (8 units).
+      const dispatcher = await loginAs(app, 'dispatcher');
+      const dispRes = await request(app).get('/api/ambulances').set(bearer(dispatcher));
+      expect(dispRes.status).toBe(200);
+      expect(dispRes.body).toHaveLength(8);
     });
   });
 

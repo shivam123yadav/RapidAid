@@ -15,7 +15,7 @@ export const DEMO_USERS = [
 // Counter start positions so generated IDs never collide with seeded ones.
 export const DEMO_COUNTERS: Record<string, number> = {
   user: DEMO_USERS.length,
-  emergency: 20484,
+  emergency: 20485,
   notification: 6,
   audit: 6,
   // VR-001 and VR-002 are seeded below, so the next allocated id is VR-003.

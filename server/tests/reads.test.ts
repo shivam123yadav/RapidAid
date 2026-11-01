@@ -16,7 +16,7 @@ describe('read endpoints', () => {
     const token = await loginAs(app, 'dispatcher');
     const res = await request(app).get('/api/ambulances').set(bearer(token));
     expect(res.status).toBe(200);
-    expect(res.body.length).toBe(6);
+    expect(res.body.length).toBe(8);
 
     const amb = res.body.find((a: { id: string }) => a.id === 'AMB-017');
     expect(amb).toMatchObject({ status: 'EN_ROUTE', currentEmergency: 'EMG-20481', speed: 45 });

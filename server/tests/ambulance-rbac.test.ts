@@ -19,7 +19,7 @@ describe('ambulance RBAC', () => {
       for (const who of ['admin', 'supervisor', 'dispatcher', 'analyst', 'auditor'] as DemoRole[]) {
         const res = await request(app).get('/api/ambulances').set(bearer(await loginAs(app, who)));
         expect(res.status, `${who} should read the fleet`).toBe(200);
-        expect(res.body.length, `${who} should see every unit`).toBe(6);
+        expect(res.body.length, `${who} should see every unit`).toBe(8);
       }
       const hospital = await request(app).get('/api/ambulances').set(bearer(await loginAs(app, 'hospital')));
       expect(hospital.status).toBe(200);
@@ -33,9 +33,11 @@ describe('ambulance RBAC', () => {
       expect(res.body[0].id).toBe(OWN_AMBULANCE);
     });
 
-    it('denies a citizen any fleet access', async () => {
+    it('scopes a citizen to their assigned emergency response only, not the full fleet', async () => {
       const res = await request(app).get('/api/ambulances').set(bearer(await loginAs(app, 'citizen')));
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe('AMB-023');
     });
 
     it('hides other units from a crew member probing by id (404, not 403)', async () => {

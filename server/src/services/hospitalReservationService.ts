@@ -86,6 +86,7 @@ export interface ReconciliationResult {
   danglingClaimsRecoveredCount: number;
   reconciledReservations: string[];
   skippedActive: string[];
+  lockUnavailable?: boolean;
 }
 
 /**
@@ -692,6 +693,10 @@ export async function reconcileHospitalReservations(
   // Bounded distributed lock to prevent worker thundering herd, with atomic CAS fallback
   const lock = await acquireSchedulerLock(lockId, ownerToken, 30_000);
   if (!lock.acquired) {
+    logger.info(
+      { lockId, ownerToken, state: 'LOCK_UNAVAILABLE' },
+      'Hospital reservation reconciliation sweep skipped: distributed lock is held by another worker',
+    );
     return {
       expiredCount: 0,
       orphanedCount: 0,
@@ -699,14 +704,24 @@ export async function reconcileHospitalReservations(
       danglingClaimsRecoveredCount: 0,
       reconciledReservations: [],
       skippedActive: [],
+      lockUnavailable: true,
     };
   }
+
+  logger.debug(
+    { lockId, ownerToken, fenceToken: lock.fenceToken },
+    'Acquired distributed lock for hospital reservation reconciliation',
+  );
 
   try {
     return await executeReconciliationScan(effectiveOptions);
   } finally {
     if (lock.fenceToken) {
       await releaseSchedulerLock(lockId, ownerToken, lock.fenceToken);
+      logger.debug(
+        { lockId, ownerToken, fenceToken: lock.fenceToken },
+        'Released distributed lock for hospital reservation reconciliation',
+      );
     }
   }
 }
@@ -1004,38 +1019,47 @@ export function runHospitalReservationReconciliationSweep(
   options?: HospitalReconciliationOptions,
 ): Promise<ReconciliationResult> {
   if (isHospitalReconciliationShuttingDown) {
+    logger.warn({ state: 'SHUTTING_DOWN' }, 'Hospital reservation reconciliation sweep skipped: server is shutting down');
     const err = ApiError.serviceUnavailable('Hospital reservation reconciliation is unavailable: server is shutting down');
     return Promise.reject(err);
   }
 
   if (activeHospitalSweepPromise) {
-    logger.warn('Hospital reservation reconciliation sweep already in progress; reusing active sweep');
+    logger.warn({ state: 'SKIPPED_CONCURRENT' }, 'Hospital reservation reconciliation sweep already in progress; reusing active sweep');
     return activeHospitalSweepPromise;
   }
 
   const startTime = Date.now();
   const sweep = (async (): Promise<ReconciliationResult> => {
     try {
-      logger.info('Hospital reservation reconciliation sweep started');
+      logger.info({ state: 'STARTED' }, 'Hospital reservation reconciliation sweep started');
       const outcome = await reconcileHospitalReservations(options);
       const durationMs = Date.now() - startTime;
-      logger.info(
-        {
-          durationMs,
-          expiredCount: outcome.expiredCount,
-          orphanedCount: outcome.orphanedCount,
-          interruptedCount: outcome.interruptedCount,
-          danglingClaimsRecoveredCount: outcome.danglingClaimsRecoveredCount,
-          reconciledIds: outcome.reconciledReservations,
-          skippedActiveCount: outcome.skippedActive.length,
-        },
-        'Hospital reservation reconciliation sweep completed successfully',
-      );
+      if (outcome.lockUnavailable) {
+        logger.info(
+          { durationMs, state: 'LOCK_UNAVAILABLE' },
+          'Hospital reservation reconciliation sweep skipped: distributed lock held by another instance',
+        );
+      } else {
+        logger.info(
+          {
+            durationMs,
+            state: 'COMPLETED',
+            expiredCount: outcome.expiredCount,
+            orphanedCount: outcome.orphanedCount,
+            interruptedCount: outcome.interruptedCount,
+            danglingClaimsRecoveredCount: outcome.danglingClaimsRecoveredCount,
+            reconciledIds: outcome.reconciledReservations,
+            skippedActiveCount: outcome.skippedActive.length,
+          },
+          'Hospital reservation reconciliation sweep completed successfully',
+        );
+      }
       return outcome;
     } catch (err) {
       const durationMs = Date.now() - startTime;
       logger.error(
-        { err, durationMs },
+        { err, durationMs, state: 'FAILED' },
         'Hospital reservation reconciliation sweep encountered an error; will retry on next schedule',
       );
       throw err;
@@ -1138,7 +1162,7 @@ export function startHospitalReservationReconciliationScheduler(
   }
 
   logger.info(
-    { intervalMs, initialJitterMs: jitter, effectiveExclusions: validation.exclusions },
+    { intervalMs, initialJitterMs: jitter, effectiveExclusions: validation.exclusions, state: 'INITIALIZED' },
     'Periodic hospital reservation reconciliation scheduler initialized',
   );
 }
@@ -1150,6 +1174,7 @@ export function stopHospitalReservationReconciliationScheduler(gracePeriodMs = 5
 
   hospitalReconciliationShutdownPromise = (async () => {
     isHospitalReconciliationShuttingDown = true;
+    logger.info({ gracePeriodMs, state: 'STOPPING' }, 'Hospital reservation reconciliation scheduler stop requested');
 
     if (hospitalReconciliationInitialTimer) {
       clearTimeout(hospitalReconciliationInitialTimer);
@@ -1184,6 +1209,8 @@ export function stopHospitalReservationReconciliationScheduler(gracePeriodMs = 5
         throw drainErr;
       }
     }
+
+    logger.info({ state: 'STOPPED' }, 'Hospital reservation reconciliation scheduler stopped successfully');
   })();
 
   return hospitalReconciliationShutdownPromise;

@@ -127,16 +127,21 @@ describe('Emergency Idempotency Index Lifecycle & Initialization', () => {
 
   // 4. Duplicate idempotency keys
   it('4. duplicate idempotency keys: detects duplicates, reports DUPLICATES_DETECTED, and preserves records without mutation', async () => {
-    try {
-      await Emergency.collection.dropIndex('idempotencyKey_1');
-    } catch {
-      // Ignored
+    const existingIndexes = await Emergency.collection.indexes();
+    for (const idx of existingIndexes) {
+      if (idx.key && (idx.key as Record<string, unknown>).idempotencyKey !== undefined) {
+        try {
+          await Emergency.collection.dropIndex(idx.name!);
+        } catch {
+          // Ignored
+        }
+      }
     }
 
     const now = new Date();
     const sharedKey = `dup-init-test-${Date.now()}`;
 
-    const emg1 = await Emergency.create({
+    await Emergency.collection.insertOne({
       _id: 'EMG-TEST-DUP-1',
       status: 'REPORTED',
       priority: 'HIGH',
@@ -148,9 +153,9 @@ describe('Emergency Idempotency Index Lifecycle & Initialization', () => {
       reportedAt: now,
       updatedAt: now,
       idempotencyKey: sharedKey,
-    });
+    } as any);
 
-    const emg2 = await Emergency.create({
+    await Emergency.collection.insertOne({
       _id: 'EMG-TEST-DUP-2',
       status: 'REPORTED',
       priority: 'MEDIUM',
@@ -162,7 +167,7 @@ describe('Emergency Idempotency Index Lifecycle & Initialization', () => {
       reportedAt: new Date(now.getTime() + 1000),
       updatedAt: now,
       idempotencyKey: sharedKey,
-    });
+    } as any);
 
     const result = await ensureEmergencyIdempotencyIndex();
     expect(result.ready).toBe(false);
@@ -171,8 +176,8 @@ describe('Emergency Idempotency Index Lifecycle & Initialization', () => {
     expect(isEmergencyIdempotencyIndexReady()).toBe(false);
 
     // Records must NOT be dropped, deleted, or unset
-    const reloaded1 = await Emergency.findById(emg1._id);
-    const reloaded2 = await Emergency.findById(emg2._id);
+    const reloaded1 = await Emergency.findById('EMG-TEST-DUP-1');
+    const reloaded2 = await Emergency.findById('EMG-TEST-DUP-2');
     expect(reloaded1?.idempotencyKey).toBe(sharedKey);
     expect(reloaded2?.idempotencyKey).toBe(sharedKey);
 

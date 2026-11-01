@@ -104,10 +104,14 @@ export async function executeGracefulShutdown(options?: ShutdownOptions): Promis
   const exit = options?.exitProcess ?? process.exit;
 
   try {
-    await Promise.allSettled([
+    const results = await Promise.allSettled([
       stopAmbulanceReconciliationScheduler(gracePeriod),
       stopHospitalReservationReconciliationScheduler(gracePeriod),
     ]);
+    const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (rejected) {
+      throw rejected.reason;
+    }
     await disconnect();
     logger.info('Shutdown complete');
     exit(0);
