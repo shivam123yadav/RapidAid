@@ -107,6 +107,10 @@ const voiceReportSchema = new Schema(
     // Not `required`: a report whose transcription failed legitimately has no
     // transcript yet, and the recording must still be stored and reviewable.
     transcript: { type: String, default: '' },
+    /** Original transcript captured from citizen voice or edited before submission. */
+    originalTranscript: { type: String, default: '' },
+    /** Normalized extraction text used for deterministic rule-based NLP extraction. */
+    normalizedExtractionText: { type: String, default: '' },
     extractedData: { type: extractedDataSchema, required: true, default: () => ({}) },
     confidence: { type: Number, required: true, min: 0, max: 100 },
     status: { type: String, enum: VOICE_REPORT_STATUSES, required: true, default: 'DRAFT' },

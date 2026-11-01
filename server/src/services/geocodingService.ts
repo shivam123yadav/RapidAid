@@ -116,7 +116,18 @@ async function loadGazetteer(): Promise<GazetteerEntry[]> {
     'college main gate': { lat: 26.228854, lng: 78.213198, accuracy: 800 },
     'college gate': { lat: 26.228854, lng: 78.213198, accuracy: 800 },
     'phool bagh': { lat: 26.242, lng: 78.22, accuracy: 1000 },
+    'full bagh': { lat: 26.242, lng: 78.22, accuracy: 1000 },
     'morar': { lat: 26.235, lng: 78.225, accuracy: 1200 },
+    'murar': { lat: 26.235, lng: 78.225, accuracy: 1200 },
+    'maharaj bada': { lat: 26.2057, lng: 78.1583, accuracy: 800 },
+    'maharaj bhada': { lat: 26.2057, lng: 78.1583, accuracy: 800 },
+    'hazira chowk': { lat: 26.2372, lng: 78.1765, accuracy: 1000 },
+    'hazira chalk': { lat: 26.2372, lng: 78.1765, accuracy: 1000 },
+    'hazira': { lat: 26.2372, lng: 78.1765, accuracy: 1000 },
+    'deendayal nagar': { lat: 26.257, lng: 78.209, accuracy: 1200 },
+    'city center': { lat: 26.2015, lng: 78.1895, accuracy: 1200 },
+    'gwalior': { lat: 26.2183, lng: 78.1828, accuracy: 5000 },
+    'gwaliyar': { lat: 26.2183, lng: 78.1828, accuracy: 5000 },
   };
 
   const entries: GazetteerEntry[] = [];

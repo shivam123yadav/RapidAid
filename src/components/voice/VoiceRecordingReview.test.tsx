@@ -139,3 +139,57 @@ describe('upload failure keeps the recording', () => {
     expect(screen.getByText(/no active Emergency has been created yet/i)).toBeInTheDocument();
   });
 });
+
+describe('Phase 1: Editable transcript & human verification review', () => {
+  it('allows user to edit the recognized transcript before sending', async () => {
+    const user = userEvent.setup();
+    const { onSend } = setup({
+      draft: draft({ transcript: 'Accident near Maharaj Bada' }),
+    });
+    const editor = screen.getByTestId('voice-review-transcript-editor');
+    expect(editor).toHaveValue('Accident near Maharaj Bada');
+
+    await user.clear(editor);
+    await user.type(editor, 'Two cars collided near Maharaj Bada Gwalior');
+    expect(screen.getByTestId('voice-review-edited-badge')).toHaveTextContent(/edited by you/i);
+    expect(screen.getByTestId('voice-review-original-text')).toHaveTextContent(/Accident near Maharaj Bada/);
+
+    await user.click(screen.getByRole('button', { name: /send recording/i }));
+    expect(onSend).toHaveBeenCalledWith('Two cars collided near Maharaj Bada Gwalior');
+  });
+
+  it('allows resetting user edits back to original speech recognition', async () => {
+    const user = userEvent.setup();
+    setup({ draft: draft({ transcript: 'Original speech transcript' }) });
+    const editor = screen.getByTestId('voice-review-transcript-editor');
+    await user.type(editor, ' plus additions');
+    expect(screen.getByTestId('voice-review-edited-badge')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('voice-review-reset-text'));
+    expect(editor).toHaveValue('Original speech transcript');
+    expect(screen.queryByTestId('voice-review-edited-badge')).toBeNull();
+  });
+
+  it('provides human confirmation checkbox for review', async () => {
+    const user = userEvent.setup();
+    setup();
+    const checkbox = screen.getByTestId('voice-review-confirm-checkbox');
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+  });
+
+  it('provides manual report fallback on model loading/transcription failure', async () => {
+    const user = userEvent.setup();
+    const onManualReport = vi.fn();
+    setup({
+      draft: draft({ transcript: '', transcriptionError: 'Local model files could not be loaded' }),
+      onManualReport,
+    });
+    expect(screen.getByTestId('voice-review-model-failure-alert')).toBeInTheDocument();
+    const manualBtn = screen.getByTestId('voice-review-manual-fallback');
+    expect(manualBtn).toBeInTheDocument();
+    await user.click(manualBtn);
+    expect(onManualReport).toHaveBeenCalledTimes(1);
+  });
+});

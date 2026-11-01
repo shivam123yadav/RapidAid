@@ -1,4 +1,8 @@
 import type { IncidentType } from '../validation/constants.js';
+import {
+  normalizeExtractionText,
+  detectGwaliorLocation,
+} from './hindiNormalizationService.js';
 
 export interface ExtractedData {
   incidentType?: IncidentType;
@@ -16,31 +20,88 @@ export interface ExtractionResult {
  * Lightweight deterministic "AI" extraction from a voice transcript.
  * Rule-based keyword matching — no external model calls, fully testable.
  * Confidence scales with how many fields could be extracted.
+ *
+ * Supports English, Devanagari Hindi, Romanized Hindi, and Hinglish.
  */
 export function extractFromTranscript(transcript: string): ExtractionResult {
-  const text = transcript.toLowerCase();
+  const normalized = normalizeExtractionText(transcript);
+  const text = normalized.toLowerCase();
   const extracted: ExtractedData = {};
 
   // ── Incident type (first matching rule wins; most specific first) ────
   const rules: [IncidentType, RegExp][] = [
-    ['CARDIAC_ARREST', /\b(cardiac|heart attack|pulse|cpr|collapsed|unconscious)\b/],
-    ['VEHICLE_COLLISION', /\b(crash|collision|hit|accident|rear-ended|rammed|smashed)\b/],
-    ['STRUCTURAL_COLLAPSE', /\b(collapse|collapsed building|cave.?in|debris|rubble)\b/],
-    ['MASS_CASUALTY', /\b(mass casualty|multiple casualties|many injured|many wounded|stampede)\b/],
-    ['EXPLOSION', /\b(explosion|exploded|blast|bomb|detonat)\b/],
-    ['GAS_LEAK', /\b(gas leak|leaking gas|gas smell|smell of gas|lpg|carbon monoxide)\b/],
-    ['FIRE', /\b(fire|flames|burning|smoke|blaze)\b/],
-    ['ELECTROCUTION', /\b(electrocut|electric shock|live wire|high.?voltage)\b/],
-    ['OBSTETRIC_EMERGENCY', /\b(pregnant|pregnancy|labour|labor|childbirth|contractions|water broke)\b/],
-    ['STROKE', /\b(stroke|paralys|slurred speech|face droop|numbness|one side of the body)\b/],
-    ['SEIZURE', /\b(seizure|convuls|epilep|fits)\b/],
-    ['RESPIRATORY_DISTRESS', /\b(breathing|breathless|breath|asthma|suffocat|choking|inhalation)\b/],
-    ['POISONING', /\b(poison|poisoning|overdose|swallowed|toxic|pesticide|snakebite)\b/],
-    ['DROWNING', /\b(drown|drowning|underwater|water)\b/],
-    ['BURN', /\b(burn|burns|scald|scalded)\b/],
-    ['ASSAULT', /\b(stab|stabbed|gunshot|shot|assault|attacked|knife|machete)\b/],
-    ['FALL_INJURY', /\b(fell|fall|fallen|dropped)\b/],
-    ['MEDICAL_EMERGENCY', /\b(bleeding|chest pain|allergic|vomiting|fever|unwell|unconsciousness)\b/],
+    [
+      'CARDIAC_ARREST',
+      /\b(cardiac|heart attack|pulse|cpr|collapsed|unconscious|behosh|behush|dil\s*ka\s*d[ao]ura|dilka\s*dora)\b|हार्ट\s*अटैक|दिल\s*का\s*दौरा|बेहोश|बेहोशी|अचेत/i,
+    ],
+    [
+      'RESPIRATORY_DISTRESS',
+      /\b(respiratory|breathing|breathless|breath|asthma|suffocat|choking|inhalation|sans\s*l[ea]hne|sans\s*lene|takleev|takleef)\b|सांस\s*लेने|सांस\s*फूल|दम\s*घुट/i,
+    ],
+    [
+      'VEHICLE_COLLISION',
+      /\b(crash|collision|hit|accident|rear-ended|rammed|smashed|durgaatna|durghatna|durhath|sadak\s*durghatna|takkar|palat)\b|पलट|दुर्घटना|सड़क\s*दुर्घटना|टक्कर|एक्सीडेंट/i,
+    ],
+    [
+      'STRUCTURAL_COLLAPSE',
+      /\b(collapse|collapsed building|cave.?in|debris|rubble)\b/i,
+    ],
+    [
+      'MASS_CASUALTY',
+      /\b(mass casualty|multiple casualties|many injured|many wounded|stampede)\b/i,
+    ],
+    [
+      'EXPLOSION',
+      /\b(explosion|exploded|blast|bomb|detonat)\b/i,
+    ],
+    [
+      'GAS_LEAK',
+      /\b(gas leak|leaking gas|gas smell|smell of gas|lpg|carbon monoxide)\b/i,
+    ],
+    [
+      'FIRE',
+      /\b(fire|flames|burning|smoke|blaze|aag\b|aag\s*lag)\b|धुआं|आग|जल\s*रहा/i,
+    ],
+    [
+      'ELECTROCUTION',
+      /\b(electrocut|electric shock|live wire|high.?voltage)\b/i,
+    ],
+    [
+      'OBSTETRIC_EMERGENCY',
+      /\b(pregnant|pregnancy|labour|labor|childbirth|contractions|water broke)\b/i,
+    ],
+    [
+      'STROKE',
+      /\b(stroke|paralys|slurred speech|face droop|numbness|one side of the body)\b/i,
+    ],
+    [
+      'SEIZURE',
+      /\b(seizure|convuls|epilep|fits)\b/i,
+    ],
+    [
+      'POISONING',
+      /\b(poison|poisoning|overdose|swallowed|toxic|pesticide|snakebite)\b/i,
+    ],
+    [
+      'DROWNING',
+      /\b(drown|drowning|underwater|water)\b/i,
+    ],
+    [
+      'BURN',
+      /\b(burn|burns|scald|scalded)\b/i,
+    ],
+    [
+      'ASSAULT',
+      /\b(stab|stabbed|gunshot|shot|assault|attacked|knife|machete)\b/i,
+    ],
+    [
+      'FALL_INJURY',
+      /\b(fell|fall|fallen|dropped)\b/i,
+    ],
+    [
+      'MEDICAL_EMERGENCY',
+      /\b(head\s*injury|chot|ghayal|ghyal|ghaial|trauma|bleeding\s*heavily|bleeding|chest pain|allergic|vomiting|fever|unwell|unconsciousness|khoon|dard)\b|गंभीर\s*चोट|सिर\s*में\s*चोट|रक्तस्राव|दर्द|खून/i,
+    ],
   ];
   for (const [type, re] of rules) {
     if (re.test(text)) {
@@ -54,23 +115,38 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
   const numberWords: Record<string, number> = {
     one: 1, two: 2, three: 3, four: 4, five: 5,
     six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+    ek: 1, do: 2, teen: 3, char: 4, chaar: 4, paanch: 5, panch: 5,
+    che: 6, chhah: 6, saat: 7, aath: 8, nau: 9, das: 10,
+    'एक': 1, 'दो': 2, 'तीन': 3, 'चार': 4, 'पांच': 5,
+    'छह': 6, 'सात': 7, 'आठ': 8, 'नौ': 9, 'दस': 10,
   };
-  const digitMatch = text.match(/\b(\d{1,3})\b\s*(?:people|persons|victims|injured|passengers)/);
-  const wordMatch = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b\s*(?:people|persons|victims)/);
+  const digitMatch = text.match(
+    /\b(\d{1,3})\b\s*(?:people|persons|victims|injured|passengers|log|lough|yatri|ghayal|घायल|लोग|यात्री)/i,
+  );
+  const wordMatch = text.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|chaar|paanch|panch|che|saat|aath|nau|das)\b\s*(?:people|persons|victims|injured|passengers|log|lough|yatri|ghayal)|(एक|दो|तीन|चार|पांच|छह|सात|आठ|नौ|दस)\s*(?:लोग|यात्री|घायल)/i,
+  );
   if (digitMatch) extracted.victimCount = Math.min(999, parseInt(digitMatch[1], 10));
-  else if (wordMatch) extracted.victimCount = numberWords[wordMatch[1]];
-  else extracted.victimCount = 1;
+  else if (wordMatch) {
+    const rawWord = (wordMatch[1] ?? wordMatch[2] ?? '').toLowerCase().trim();
+    extracted.victimCount = numberWords[rawWord] ?? 1;
+  } else extracted.victimCount = 1;
 
-  // ── Location (text after near/at/on/intersection keywords) ───────────
-  const locMatch =
-    text.match(/\b(?:near|at|on|outside|intersection of|by)\s+([a-z0-9][^.,;!?]{3,80})/);
-  if (locMatch) {
-    // Title-case so assertions/UI show "Karol Bagh", not "karol bagh".
-    const raw = locMatch[1]
-      .trim()
-      .replace(/\s+/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-    extracted.location = raw;
+  // ── Location ─────────────────────────────────────────────────────────
+  const gwaliorLoc = detectGwaliorLocation(transcript);
+  if (gwaliorLoc.landmark) {
+    extracted.location = gwaliorLoc.formattedLocation ?? gwaliorLoc.landmark;
+  } else {
+    const locMatch =
+      text.match(/\b(?:near|at|on|outside|intersection of|by)\s+([a-z0-9][^.,;!?]{3,80})/i);
+    if (locMatch) {
+      // Title-case so assertions/UI show "Karol Bagh", not "karol bagh".
+      const raw = locMatch[1]
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      extracted.location = raw;
+    }
   }
 
   // ── Description: first sentence, capped ──────────────────────────────

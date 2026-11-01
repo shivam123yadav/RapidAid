@@ -177,6 +177,12 @@ function toVoiceReportDetail(
 ): Record<string, unknown> {
   const detail = summarizeVoiceReport(auth, report, capabilities);
   detail.transcript = capabilities.transcript ? (report.transcript ?? '') : null;
+  detail.originalTranscript = capabilities.transcript
+    ? (((report as Record<string, unknown>).originalTranscript as string | undefined) ?? report.transcript ?? '')
+    : null;
+  detail.normalizedExtractionText = capabilities.transcript
+    ? (((report as Record<string, unknown>).normalizedExtractionText as string | undefined) ?? report.transcript ?? '')
+    : null;
   detail.transcriptRestricted = !capabilities.transcript;
   detail.extractedData = report.extractedData ?? {};
   detail.extractedInformation = report.extractedInformation ?? null;
@@ -384,14 +390,19 @@ voiceRouter.post(
   requirePermission(P.VOICE_CREATE),
   validateBody(voiceTranscriptSchema),
   asyncHandler(async (req, res) => {
-    const { extractedData, confidence } = extractFromTranscript(req.body.transcript);
+    const originalTranscript = req.body.transcript;
+    const { normalizeExtractionText } = await import('../services/hindiNormalizationService.js');
+    const normalizedExtractionText = normalizeExtractionText(originalTranscript);
+    const { extractedData, confidence } = extractFromTranscript(originalTranscript);
     const _id = await nextId('voiceReport', 'VR', 3);
 
     const report = await VoiceReport.create({
       _id,
       ownerId: req.auth!.userId,
       hospitalId: req.auth!.hospitalId,
-      transcript: req.body.transcript,
+      transcript: originalTranscript,
+      originalTranscript,
+      normalizedExtractionText,
       extractedData,
       confidence,
       status: 'DRAFT',
@@ -909,6 +920,8 @@ voiceRouter.post(
     res.status(result.emergency ? 201 : 202).json({
       report: result.report,
       transcript: result.transcript,
+      originalTranscript: result.originalTranscript,
+      normalizedExtractionText: result.normalizedExtractionText,
       extractedInformation: result.extractedInformation,
       location: result.location,
       hospital: result.hospital,

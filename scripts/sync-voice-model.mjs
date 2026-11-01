@@ -16,11 +16,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const MODEL_ID = 'Xenova/whisper-tiny.en';
+const MODEL_ID = 'Xenova/whisper-base';
 const MODEL_BASE = `https://huggingface.co/${MODEL_ID}/resolve/main/`;
 const MODEL_DIR = join(ROOT, 'public', 'models', ...MODEL_ID.split('/'));
 const ORT_DIR = join(ROOT, 'public', 'ort');
 const ORT_DIST = join(ROOT, 'node_modules', '@huggingface', 'transformers', 'dist');
+const CACHE_DIR = join(ROOT, 'node_modules', '@huggingface', 'transformers', '.cache', ...MODEL_ID.split('/'));
 
 /** Exact file set consumed by `dtype: 'q8'` (verified by the offline test). */
 const MODEL_FILES = [
@@ -89,6 +90,13 @@ async function main() {
   for (const file of MODEL_FILES) {
     if (!force && (await exists(join(MODEL_DIR, file)))) {
       console.log(`  ${file.padEnd(45)} kept`);
+      continue;
+    }
+    const cachedPath = join(CACHE_DIR, file);
+    if (await exists(cachedPath)) {
+      await mkdir(dirname(join(MODEL_DIR, file)), { recursive: true });
+      await copyFile(cachedPath, join(MODEL_DIR, file));
+      console.log(`  ${file.padEnd(45)} copied from cache`);
       continue;
     }
     const info = await download(`${MODEL_BASE}${file}`, file);

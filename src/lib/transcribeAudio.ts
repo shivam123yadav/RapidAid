@@ -85,12 +85,59 @@ export class AudioShapeError extends Error {
   }
 }
 
+export interface TranscribePipelineOptions {
+  chunk_length_s?: number;
+  stride_length_s?: number;
+  language?: string | null;
+  task?: 'transcribe' | 'translate';
+  initial_prompt?: string;
+  return_timestamps?: boolean;
+}
+
 interface Transcriber {
-  (audio: Float32Array, options?: { chunk_length_s?: number; stride_length_s?: number }): Promise<{
+  (audio: Float32Array, options?: TranscribePipelineOptions): Promise<{
     text?: unknown;
   }>;
 }
 
+/**
+ * Normalizes speech recognition text whitespace without mutating or inventing words.
+ * Conforms to: "Do not invent transcript corrections or automatically replace misrecognized words."
+ */
+export function normalizeSpeechTranscript(text: string): string {
+  if (!text) return '';
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Amplitude normalization: boosts low-level audio signals safely up to target peak
+ * so quiet speech is readily audible to Whisper's feature extractor.
+ */
+export function normalizeAudioAmplitude(samples: Float32Array, targetPeak = 0.95): Float32Array {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const abs = Math.abs(samples[i]);
+    if (abs > peak) peak = abs;
+  }
+  if (peak === 0 || peak >= targetPeak) return samples;
+  const factor = targetPeak / peak;
+  const normalized = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i += 1) {
+    normalized[i] = samples[i] * factor;
+  }
+  return normalized;
+}
+
+/** Emergency domain vocabulary priming for Whisper decoder */
+export const EMERGENCY_INITIAL_PROMPT =
+  'Emergency report: road accident, vehicle collision, ambulance needed, hospital, patient, unconscious, bleeding, Gwalior, Indore, Delhi, Maharaj Bada, Phool Bagh, Hazira, Morar, Deendayal Nagar, सड़क दुर्घटना, घायल, एम्बुलेंस, अस्पताल, बेहोश, दिल का दौरा';
+
+export interface TranscriptionOptions {
+  /** Explicit language code: 'en', 'hi', or 'auto' for automatic language detection. */
+  language?: 'auto' | 'en' | 'hi' | string | null;
+  task?: 'transcribe' | 'translate';
+  initialPrompt?: string;
+}
 
 /**
  * ---------------------------------------------------------------------------
@@ -157,8 +204,8 @@ export function normalizeAudioToFloat32(
   throw new AudioShapeError(describeAudio(audio).constructorName);
 }
 
-/** Bundled English tiny Whisper — files live in public/models (see sync script). */
-const MODEL_ID = 'Xenova/whisper-tiny.en';
+/** Bundled Multilingual Whisper — files live in public/models (see sync script). */
+export const MODEL_ID = 'Xenova/whisper-base';
 
 type ProgressEventLike = {
   status?: string;
@@ -276,29 +323,19 @@ async function decodeTo16kMono(blob: Blob): Promise<Float32Array> {
 }
 
 /**
- * Normalizes speech recognition text to correct known acoustic/phonetic
- * misrecognitions of emergency phrases (e.g. "recollector" for "vehicle accident").
- */
-export function normalizeSpeechTranscript(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/\b(?:recollector|re-collector|wreck collector)\b/gi, 'vehicle accident')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
  * Transcribes a recorded audio blob to text on-device, returning the text plus
  * the diagnostics the pipeline logs.
  *
  * @param blob audio captured by `MediaRecorder`
  * @param onProgress optional model-download / phase progress callback
+ * @param options optional explicit language ('en' | 'hi' | 'auto') and task options
  * @returns the recognized text (trimmed) and safe metadata
  * @throws Error with a user-facing message when decoding or the model fails
  */
 export async function transcribeRecording(
   blob: Blob,
   onProgress?: TranscribeProgress,
+  options?: TranscriptionOptions,
 ): Promise<TranscriptionResult> {
   if (!blob || blob.size === 0) {
     throw new Error('The recording was empty — check your microphone and try again.');
@@ -311,11 +348,25 @@ export async function transcribeRecording(
     const decoded = await decodeTo16kMono(blob);
     // The single normalization boundary. Whatever `decoded` is, the pipeline
     // below only ever sees a real Float32Array.
-    const { samples, samplingRate } = normalizeAudioToFloat32(decoded, WHISPER_SAMPLE_RATE);
+    const { samples: rawSamples, samplingRate } = normalizeAudioToFloat32(decoded, WHISPER_SAMPLE_RATE);
+    // Audio amplitude normalization: boosts quiet microphone capture up to target peak
+    const samples = normalizeAudioAmplitude(rawSamples, 0.95);
 
     // Model is ready — inference phase has an indeterminate indicator.
     emitProgress(null);
-    const output = await transcriber(samples, { chunk_length_s: 30, stride_length_s: 5 });
+
+    const selectedLanguage =
+      options?.language && options.language !== 'auto' ? options.language : undefined;
+
+    const pipelineOptions: TranscribePipelineOptions = {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      task: options?.task || 'transcribe',
+      ...(selectedLanguage ? { language: selectedLanguage } : {}),
+      initial_prompt: options?.initialPrompt ?? EMERGENCY_INITIAL_PROMPT,
+    };
+
+    const output = await transcriber(samples, pipelineOptions);
     const rawText = typeof output?.text === 'string' ? output.text.trim() : '';
     const text = normalizeSpeechTranscript(rawText);
     return {
@@ -348,7 +399,7 @@ export async function transcribeRecording(
 export async function transcribeBlob(
   blob: Blob,
   onProgress?: TranscribeProgress,
+  options?: TranscriptionOptions,
 ): Promise<string> {
-  return (await transcribeRecording(blob, onProgress)).text;
+  return (await transcribeRecording(blob, onProgress, options)).text;
 }
-

@@ -60,7 +60,7 @@ for (let i = 0; i < samples.length; i += 1) {
 }
 
 console.log('Loading the bundled Whisper model (offline)…');
-const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', {
   dtype: 'q8',
 });
 console.log('Model ready.\n');

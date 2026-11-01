@@ -42,6 +42,8 @@ export interface VoiceStopResult {
   mimeType: string | null;
   /** Wall-clock recording length in seconds. */
   durationSeconds: number;
+  /** Language option used for transcription ('auto' | 'en' | 'hi'). */
+  language?: string | null;
 }
 
 export interface UseVoiceInputResult {
@@ -57,6 +59,9 @@ export interface UseVoiceInputResult {
   /** MediaRecorder + getUserMedia available (voice recording works). */
   recordingSupported: boolean;
   error: string | null;
+  /** Currently selected transcription language ('auto', 'en', 'hi'). */
+  selectedLanguage: 'auto' | 'en' | 'hi';
+  setSelectedLanguage: (lang: 'auto' | 'en' | 'hi') => void;
   start: () => Promise<void>;
   stop: () => Promise<VoiceStopResult>;
 }
@@ -73,6 +78,7 @@ export function useVoiceInput(): UseVoiceInputResult {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [inputLevel, setInputLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<'auto' | 'en' | 'hi'>('auto');
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -190,15 +196,27 @@ export function useVoiceInput(): UseVoiceInputResult {
         return;
       }
       let stream: MediaStream;
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 16000,
+      };
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       } catch (err) {
-        setError(
-          err instanceof DOMException && err.name === 'NotAllowedError'
-            ? 'Microphone access was denied. Allow microphone permission for this site, then try again.'
-            : 'No microphone was found. Connect a microphone and try again.',
-        );
-        return;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (innerErr) {
+          const finalErr = innerErr instanceof Error ? innerErr : err;
+          setError(
+            finalErr instanceof DOMException && finalErr.name === 'NotAllowedError'
+              ? 'Microphone access was denied. Allow microphone permission for this site, then try again.'
+              : 'No microphone was found. Connect a microphone and try again.',
+          );
+          return;
+        }
       }
       if (!mountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
@@ -249,7 +267,14 @@ export function useVoiceInput(): UseVoiceInputResult {
 
   const stop = useCallback(async (): Promise<VoiceStopResult> => {
     if (phase !== 'recording' || opRef.current) {
-      return { text: '', error: null, blob: null, mimeType: null, durationSeconds: 0 };
+      return {
+        text: '',
+        error: null,
+        blob: null,
+        mimeType: null,
+        durationSeconds: 0,
+        language: selectedLanguage,
+      };
     }
     opRef.current = true;
     setPhase('processing');
@@ -268,10 +293,14 @@ export function useVoiceInput(): UseVoiceInputResult {
     } else {
       setTranscribeProgress(null);
       try {
-        // Transcribe everything spoken with the bundled free Whisper model.
-        text = await transcribeBlob(blob, (percent) => {
-          if (mountedRef.current) setTranscribeProgress(percent);
-        });
+        // Transcribe everything spoken with the bundled multilingual Whisper model.
+        text = await transcribeBlob(
+          blob,
+          (percent) => {
+            if (mountedRef.current) setTranscribeProgress(percent);
+          },
+          { language: selectedLanguage },
+        );
       } catch (err) {
         localError =
           err instanceof Error && err.message ? err.message : 'Could not transcribe the recording.';
@@ -289,8 +318,15 @@ export function useVoiceInput(): UseVoiceInputResult {
     opRef.current = false;
     // The blob is returned even when transcription failed: the recording is
     // still uploaded so it can be stored and reviewed later.
-    return { text, error: localError, blob, mimeType, durationSeconds };
-  }, [phase, releaseStream, stopRecorder, teardownMeter]);
+    return {
+      text,
+      error: localError,
+      blob,
+      mimeType,
+      durationSeconds,
+      language: selectedLanguage,
+    };
+  }, [phase, releaseStream, selectedLanguage, stopRecorder, teardownMeter]);
 
   // Keep the latest `stop` reachable from the duration-ticker effect.
   useEffect(() => {
@@ -324,6 +360,8 @@ export function useVoiceInput(): UseVoiceInputResult {
     transcribeProgress,
     recordingSupported,
     error,
+    selectedLanguage,
+    setSelectedLanguage,
     start,
     stop,
   };

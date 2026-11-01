@@ -473,6 +473,8 @@ export interface VoiceHospitalSelection {
 export interface VoiceReport {
   id: string;
   transcript: string;
+  originalTranscript?: string;
+  normalizedExtractionText?: string;
   extractedData: {
     incidentType?: IncidentType;
     location?: string;
@@ -602,6 +604,8 @@ export interface VoiceAccessHistory {
 export interface VoiceRecordingResult {
   report: VoiceReport;
   transcript: string;
+  originalTranscript?: string;
+  normalizedExtractionText?: string;
   extractedInformation: VoiceExtractedInformation;
   location: VoiceLocation;
   hospital: VoiceHospitalSelection | null;

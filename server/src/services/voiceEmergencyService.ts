@@ -89,6 +89,8 @@ export interface VoiceProcessingResult {
   report: Record<string, unknown>;
   emergency: Record<string, unknown> | null;
   transcript: string;
+  originalTranscript?: string;
+  normalizedExtractionText?: string;
   extractedInformation: ExtractedEmergencyInformation;
   location: VoiceLocationOutcome;
   hospital: HospitalCandidate | null;
@@ -369,6 +371,8 @@ export async function processVoiceRecording(
     ownerId: auth.userId,
     hospitalId: auth.hospitalId,
     transcript,
+    originalTranscript: transcript,
+    normalizedExtractionText: extracted.normalizedExtractionText ?? transcript,
     extractedData: {
       incidentType: extracted.emergencyType,
       location: extracted.spokenLocation ?? undefined,
@@ -453,6 +457,8 @@ export async function processVoiceRecording(
       report: report.toJSON() as Record<string, unknown>,
       emergency: null,
       transcript,
+      originalTranscript: transcript,
+      normalizedExtractionText: extracted.normalizedExtractionText ?? transcript,
       extractedInformation: extracted,
       location,
       hospital: null,
@@ -719,6 +725,8 @@ async function completeVoiceEmergency(
       ? (toClientEmergency(auth, emergency) as unknown as Record<string, unknown>)
       : null,
     transcript: report.transcript,
+    originalTranscript: report.transcript,
+    normalizedExtractionText: extracted.normalizedExtractionText ?? report.transcript,
     extractedInformation: extracted,
     location,
     hospital: routing.hospital,

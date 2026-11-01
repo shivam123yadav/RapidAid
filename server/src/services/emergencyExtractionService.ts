@@ -1,18 +1,9 @@
 import { extractFromTranscript } from './voiceExtractionService.js';
 import type { IncidentType, Priority } from '../validation/constants.js';
-
-/**
- * Turns a transcript into the structured facts a dispatch decision needs.
- *
- * This sits on top of the existing `voiceExtractionService` (incident type,
- * victim count, confidence) rather than replacing it, so the rules that
- * existing reports already rely on keep working unchanged. What is added here
- * is the part the previous flow was missing: a *spoken* location, the
- * landmarks inside it, severity, and the operational hints a dispatcher reads.
- *
- * Everything is derived from the words that were actually said. Nothing is
- * inferred about a place the speaker never mentioned.
- */
+import {
+  detectGwaliorLocation,
+  normalizeExtractionText,
+} from './hindiNormalizationService.js';
 
 export interface ExtractedEmergencyInformation {
   /** Maps onto Emergency.incidentType. */
@@ -33,6 +24,10 @@ export interface ExtractedEmergencyInformation {
   /** Short operational notes, e.g. "trapped", "not breathing". */
   dispatchHints: string[];
   confidence: number;
+  /** Original verbatim transcript from caller. */
+  originalTranscript?: string;
+  /** Normalized extraction text used for deterministic NLP matching. */
+  normalizedExtractionText?: string;
 }
 
 export interface ExtractionContext {
@@ -89,36 +84,41 @@ const LANDMARK_NOUNS = [
 
 /** Phrases that raise severity regardless of incident type. */
 const CRITICAL_PHRASES: RegExp[] = [
-  /\bnot\s+breathing\b/,
-  /\bstopped\s+breathing\b/,
-  /\bno\s+pulse\b/,
-  /\bunconscious\b/,
-  /\bnot\s+moving\b/,
-  /\bnot\s+responding\b/,
-  /\bbleeding\s+(badly|heavily|severely)\b/,
-  /\btrapped\b/,
-  /\btrapped\s+under\b/,
-  /\bmass\s+casualty\b/,
-  /\bmultiple\s+casualt/,
-  /\bstampede\b/,
-  /\bexplosion\b/,
-  /\bheart\s+attack\b/,
-  /\bcardiac\b/,
-  /\bchest\s+pain\b/,
-  /\bchild\b/,
-  /\bpregnant\b/,
-  /\bdrowning\b/,
-  /\bgunshot\b/,
-  /\bstabbed\b/,
+  /\bnot\s+breathing\b/i,
+  /\bstopped\s+breathing\b/i,
+  /\bno\s+pulse\b/i,
+  /\bunconscious\b/i,
+  /\bnot\s+moving\b/i,
+  /\bnot\s+responding\b/i,
+  /\bbleeding\s+(badly|heavily|severely)\b/i,
+  /\btrapped\b/i,
+  /\btrapped\s+under\b/i,
+  /\bmass\s+casualty\b/i,
+  /\bmultiple\s+casualt/i,
+  /\bstampede\b/i,
+  /\bexplosion\b/i,
+  /\bheart\s+attack\b/i,
+  /\bcardiac\b/i,
+  /\bchest\s+pain\b/i,
+  /\bchild\b/i,
+  /\bpregnant\b/i,
+  /\bdrowning\b/i,
+  /\bgunshot\b/i,
+  /\bstabbed\b/i,
+  /\b(?:sans\s*(?:nahi|lehne\s*me\s*bhaag\s*takleev)|saas\s*nahi|dam\s*ghut|सांस\s*नहीं)\b/i,
+  /\b(?:behosh|behush|बेहोश|बेहोशी|अचेत)\b/i,
+  /\b(?:dil\s*ka\s*d[ao]ura|dilka\s*dora|हार्ट\s*अटैक|दिल\s*का\s*दौरा)\b/i,
+  /\b(?:bhaag\s*takleev|khoon\s*beh|रक्तस्राव|gamveer)\b/i,
 ];
 
 /** Phrases that mark urgency but not an immediate life threat. */
 const URGENT_PHRASES: RegExp[] = [
-  /\burgent/,
-  /\bquick/,
-  /\bhurry/,
-  /\bimmediately\b/,
-  /\bfast/,
+  /\burgent/i,
+  /\bquick/i,
+  /\bhurry/i,
+  /\bimmediately\b/i,
+  /\bfast/i,
+  /\b(?:turant|jaldi|turanth|तुरंत|जल्दी)\b/i,
 ];
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -260,7 +260,8 @@ export function extractEmergencyInformation(
   context: ExtractionContext = {},
 ): ExtractedEmergencyInformation {
   const text = transcript.trim();
-  const lowered = text.toLowerCase();
+  const normalizedText = normalizeExtractionText(text);
+  const lowered = normalizedText.toLowerCase();
   const { extractedData, confidence } = extractFromTranscript(text);
   const location = extractSpokenLocation(text, context);
   const injuredPeople = extractedData.victimCount ?? null;
@@ -286,6 +287,8 @@ export function extractEmergencyInformation(
     state: location.state,
     dispatchHints: [...new Set(dispatchHints)],
     confidence,
+    originalTranscript: text,
+    normalizedExtractionText: normalizedText,
   };
 }
 
@@ -306,6 +309,17 @@ export function extractSpokenLocation(
   transcript: string,
   context: ExtractionContext = {},
 ): SpokenLocationResult {
+  // 1. Check explicit landmark aliases (Gwalior landmarks in English, Devanagari, or Romanized Hindi)
+  const gwaliorLoc = detectGwaliorLocation(transcript);
+  if (gwaliorLoc.landmark) {
+    return {
+      spokenLocation: gwaliorLoc.formattedLocation,
+      landmarks: [gwaliorLoc.landmark],
+      city: gwaliorLoc.city,
+      state: null,
+    };
+  }
+
   const sentences = transcript
     .split(/(?<=[.!?])\s+|\n+/)
     .map((sentence) => sentence.trim())

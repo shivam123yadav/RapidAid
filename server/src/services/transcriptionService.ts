@@ -99,15 +99,12 @@ function baseResult(
 }
 
 /**
- * Normalizes speech recognition text to correct known acoustic/phonetic
- * misrecognitions of emergency phrases (e.g. "recollector" for "vehicle accident").
+ * Normalizes speech recognition text whitespace without mutating or inventing words.
+ * Conforms to: "Do not invent transcript corrections or automatically replace misrecognized words."
  */
 export function normalizeSpeechTranscript(text: string): string {
   if (!text) return '';
-  return text
-    .replace(/\b(?:recollector|re-collector|wreck collector)\b/gi, 'vehicle accident')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /**

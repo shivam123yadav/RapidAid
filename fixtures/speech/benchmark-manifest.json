@@ -1,0 +1,143 @@
+[
+  {
+    "id": "en_us_medical_cardiac",
+    "category": "English emergency report",
+    "voice": "en-US-GuyNeural",
+    "language": "en",
+    "reference_text": "Emergency. An elderly man collapsed and is unconscious with severe chest pain near City Center. Please send an ambulance immediately.",
+    "expected_incident": "CARDIAC_ARREST",
+    "expected_location": "City Center",
+    "key_terms": [
+      "unconscious",
+      "chest pain",
+      "collapsed",
+      "ambulance"
+    ],
+    "file": "en_us_medical_cardiac.wav",
+    "duration_seconds": 9.89,
+    "size_bytes": 316460,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "en_in_accident_maharaj_bada",
+    "category": "Indian-accented English vehicle accident (Gwalior)",
+    "voice": "en-IN-PrabhatNeural",
+    "language": "en",
+    "reference_text": "There has been a severe vehicle accident at Maharaj Bada in Gwalior. A motorcycle collided with a car and two people are badly injured. Send an ambulance quickly.",
+    "expected_incident": "VEHICLE_COLLISION",
+    "expected_location": "Maharaj Bada, Gwalior",
+    "key_terms": [
+      "vehicle accident",
+      "collided",
+      "injured",
+      "Maharaj Bada"
+    ],
+    "file": "en_in_accident_maharaj_bada.wav",
+    "duration_seconds": 13.94,
+    "size_bytes": 446252,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "en_in_medical_phool_bagh",
+    "category": "Indian-accented English medical emergency (Gwalior)",
+    "voice": "en-IN-NeerjaNeural",
+    "language": "en",
+    "reference_text": "Urgent medical help needed near Phool Bagh crossing in Gwalior. A person is bleeding heavily after a head injury. Please dispatch emergency services right away.",
+    "expected_incident": "MEDICAL_EMERGENCY",
+    "expected_location": "Phool Bagh crossing, Gwalior",
+    "key_terms": [
+      "bleeding heavily",
+      "head injury",
+      "emergency services",
+      "Phool Bagh"
+    ],
+    "file": "en_in_medical_phool_bagh.wav",
+    "duration_seconds": 12.86,
+    "size_bytes": 411692,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "en_in_accident_hazira_chowk",
+    "category": "Indian-accented English vehicle accident (Gwalior)",
+    "voice": "en-IN-PrabhatNeural",
+    "language": "en",
+    "reference_text": "Accident near Hazira Chowk in Gwalior. An auto-rickshaw overturned and the driver is trapped. We need immediate rescue.",
+    "expected_incident": "VEHICLE_COLLISION",
+    "expected_location": "Hazira Chowk, Gwalior",
+    "key_terms": [
+      "accident",
+      "overturned",
+      "trapped",
+      "rescue",
+      "Hazira Chowk"
+    ],
+    "file": "en_in_accident_hazira_chowk.wav",
+    "duration_seconds": 10.75,
+    "size_bytes": 344108,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "hi_in_accident_gwalior",
+    "category": "Hindi emergency report (Gwalior vehicle accident)",
+    "voice": "hi-IN-MadhurNeural",
+    "language": "hi",
+    "reference_text": "नमस्ते, महाराज बाड़ा ग्वालियर में एक गंभीर सड़क दुर्घटना हुई है। दो लोग घायल हैं और तुरंत एम्बुलेंस भेजिए।",
+    "expected_incident": "VEHICLE_COLLISION",
+    "expected_location": "महाराज बाड़ा ग्वालियर",
+    "key_terms": [
+      "सड़क दुर्घटना",
+      "घायल",
+      "एम्बुलेंस",
+      "महाराज बाड़ा"
+    ],
+    "file": "hi_in_accident_gwalior.wav",
+    "duration_seconds": 10.58,
+    "size_bytes": 338732,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "hi_in_medical_deendayal_nagar",
+    "category": "Hindi emergency report (Gwalior medical emergency)",
+    "voice": "hi-IN-SwaraNeural",
+    "language": "hi",
+    "reference_text": "दीनदयाल नगर ग्वालियर में एक व्यक्ति को दिल का दौरा पड़ा है और वह बेहोश है। सांस लेने में बहुत तकलीफ हो रही है, जल्दी डॉक्टर और एम्बुलेंस भेजिए।",
+    "expected_incident": "CARDIAC_ARREST",
+    "expected_location": "दीनदयाल नगर ग्वालियर",
+    "key_terms": [
+      "दिल का दौरा",
+      "बेहोश",
+      "सांस लेने में तकलीफ",
+      "दीनदयाल नगर"
+    ],
+    "file": "hi_in_medical_deendayal_nagar.wav",
+    "duration_seconds": 12.6,
+    "size_bytes": 403244,
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  {
+    "id": "hi_in_accident_morar",
+    "category": "Hindi emergency report (Gwalior Morar collision)",
+    "voice": "hi-IN-MadhurNeural",
+    "language": "hi",
+    "reference_text": "मुरार चौराहा पर एक बस और कार की टक्कर हो गई है। कई यात्री घायल हैं, तुरंत पुलिस और एम्बुलेंस की जरूरत है।",
+    "expected_incident": "VEHICLE_COLLISION",
+    "expected_location": "मुरार चौराहा",
+    "key_terms": [
+      "टक्कर",
+      "घायल",
+      "एम्बुलेंस",
+      "मुरार चौराहा"
+    ],
+    "file": "hi_in_accident_morar.wav",
+    "duration_seconds": 10.97,
+    "size_bytes": 351020,
+    "sample_rate": 16000,
+    "channels": 1
+  }
+]

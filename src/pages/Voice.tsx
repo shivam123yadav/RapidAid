@@ -477,6 +477,8 @@ export function VoicePage() {
     transcribeProgress,
     recordingSupported,
     error: voiceError,
+    selectedLanguage,
+    setSelectedLanguage,
     start: startVoice,
     stop: stopVoice,
   } = useVoiceInput();
@@ -504,6 +506,7 @@ export function VoicePage() {
           mimeType: result.mimeType,
           durationSeconds: result.durationSeconds,
           transcript: result.text,
+          originalTranscript: result.text,
           transcriptionError: result.error,
           idempotencyKey: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `rec-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         });
@@ -523,8 +526,9 @@ export function VoicePage() {
   };
 
   /** Uploads the staged recording. The Blob survives any failure for a retry. */
-  const sendDraft = useCallback(async () => {
+  const sendDraft = useCallback(async (finalTranscript?: string) => {
     if (!draft) return;
+    const textToSend = (finalTranscript ?? draft.transcript).trim();
     // Device GPS is a best-effort fallback: it is only sent so the server can
     // fall back to it when the spoken location cannot be resolved.
     const device = await getDeviceLocation();
@@ -536,7 +540,7 @@ export function VoicePage() {
     }
     const form = buildVoiceRecordingFormData({
       blob: draft.blob,
-      transcript: draft.transcript.trim(),
+      transcript: textToSend,
       durationSeconds: draft.durationSeconds,
       ...(device.ok
         ? {
@@ -785,6 +789,26 @@ export function VoicePage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center justify-center py-8">
+              {!isRecording && !isProcessing && !draft && (
+                <div className="mb-4 flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1 text-xs" data-testid="voice-language-selector">
+                  <span className="px-2 text-[11px] text-[var(--muted-foreground)]">Language:</span>
+                  {(['auto', 'en', 'hi'] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => setSelectedLanguage(lang)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                        selectedLanguage === lang
+                          ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                          : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                      }`}
+                      data-testid={`voice-lang-${lang}`}
+                    >
+                      {lang === 'auto' ? 'Auto-detect' : lang === 'en' ? 'English' : 'हिंदी (Hindi)'}
+                    </button>
+                  ))}
+                </div>
+              )}
               <MicButton isRecording={isRecording} disabled={recordingDisabled} onClick={handleMicClick} />
               <p className="mt-4 text-sm font-medium" aria-live="polite">
                 {recordMutation.isPending
@@ -807,8 +831,9 @@ export function VoicePage() {
                     draft={draft}
                     uploading={recordMutation.isPending}
                     uploadError={uploadError}
-                    onSend={() => void sendDraft()}
+                    onSend={(finalText) => void sendDraft(finalText)}
                     onRecordAgain={recordAgain}
+                    onManualReport={() => navigate('/emergencies/new')}
                     onDiscard={() => {
                       setDraft(null);
                       setUploadError(null);
