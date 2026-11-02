@@ -9,6 +9,7 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  ExternalLink,
   Eye,
   Globe,
   Heart,
@@ -44,6 +45,57 @@ const NAV_LINKS = [
   { href: '#roles', label: 'Roles' },
   { href: '#security', label: 'Security' },
   { href: '#appearance', label: 'Appearance' },
+  { href: '#developers', label: 'Developers' },
+];
+
+function GithubIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
+
+function LinkedinIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+      <rect x="2" y="9" width="4" height="12" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
+  );
+}
+
+interface DeveloperProfile {
+  name: string;
+  initials: string;
+  role: string;
+  leadTag: string;
+  bio: string;
+  focusAreas: string[];
+  githubUrl?: string;
+  linkedinUrl?: string;
+}
+
+const DEVELOPERS: DeveloperProfile[] = [
+  {
+    name: 'Shivam Yadav',
+    initials: 'SY',
+    role: 'Full-Stack Developer & Cloud Architect',
+    leadTag: 'Backend & Infrastructure',
+    bio: 'Architected RapidAid\'s core emergency backend services, transactional dispatch reconciliation, multilingual voice intake pipeline, and cloud deployment infrastructure.',
+    focusAreas: ['Backend Architecture', 'Real-Time Dispatch', 'Voice Intelligence', 'Cloud Infrastructure'],
+    githubUrl: 'https://github.com/shivam123yadav',
+  },
+  {
+    name: 'Yash Jaiswal',
+    initials: 'YJ',
+    role: 'Full-Stack Developer & Systems Engineer',
+    leadTag: 'Frontend & Integrations',
+    bio: 'Engineered RapidAid\'s operational consoles, live telemetry map tracking, automated road routing coordination, and end-to-end emergency response user experience.',
+    focusAreas: ['Operational UI/UX', 'Live GPS Tracking', 'Road Routing', 'Systems Integration'],
+  },
 ];
 
 const CAPABILITIES = [
@@ -134,7 +186,7 @@ const ROLE_ORDER: UserRole[] = [
   'ADMIN',
 ];
 
-export function LandingPage() {
+export function LandingPage({ defaultHash }: { defaultHash?: string } = {}) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const role = user?.role;
@@ -152,6 +204,19 @@ export function LandingPage() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    const hash = defaultHash || window.location.hash;
+    if (hash) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 70);
+      return () => clearTimeout(timer);
+    }
+  }, [defaultHash]);
 
   const targetFor = (path: string) => {
     if (!isAuthenticated) return '/login';
@@ -704,6 +769,121 @@ export function LandingPage() {
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Developers                                                        */}
+        {/* ---------------------------------------------------------------- */}
+        <section id="developers" className="relative border-b border-[var(--border)] py-20 sm:py-24">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="ambient-orb -right-24 top-1/2 h-80 w-80 -translate-y-1/2 bg-[var(--primary)]/10" />
+          </div>
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Reveal>
+              <div className="flex flex-col gap-4 max-w-3xl">
+                <p className="eyebrow text-[var(--primary)]">Engineering &amp; Architecture</p>
+                <h2 className="mt-3 font-display text-3xl font-semibold tracking-[-0.045em] sm:text-4xl lg:text-5xl">
+                  Meet the Developers
+                </h2>
+                <p className="mt-4 max-w-2xl text-pretty leading-relaxed text-[var(--muted-foreground)]">
+                  The two developers designed and built the RapidAid platform, architecting an integrated emergency response network that pairs real-time dispatch with live telemetry and resilient coordination.
+                </p>
+              </div>
+            </Reveal>
+
+            <RevealGroup className="mt-12 grid gap-6 sm:grid-cols-2 max-w-5xl">
+              {DEVELOPERS.map((dev) => (
+                <RevealItem key={dev.name}>
+                  <Card
+                    variant="interactive"
+                    className="group relative flex h-full flex-col overflow-hidden border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_70%,transparent)] p-6 sm:p-8 backdrop-blur-sm transition-all duration-300 hover:border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] hover:shadow-[var(--shadow-pop)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge
+                        variant="outline"
+                        className="border-[var(--border)] bg-[var(--surface)] text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--muted-foreground)]"
+                      >
+                        {dev.leadTag}
+                      </Badge>
+                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--success)]">
+                        <CheckCircle2 size={12} />
+                        Core Developer
+                      </span>
+                    </div>
+
+                    <div className="mt-5 flex items-start gap-4">
+                      <div className="relative flex h-14 w-14 sm:h-16 sm:w-16 flex-none items-center justify-center overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] font-display text-lg sm:text-xl font-bold text-[var(--primary)] shadow-[0_8px_24px_-10px_var(--primary)] transition-transform duration-300 group-hover:scale-105">
+                        <span>{dev.initials}</span>
+                        <span className="absolute inset-x-0 top-0 h-px bg-white/30" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-display text-lg sm:text-xl font-semibold tracking-[-0.02em] text-[var(--foreground)]">
+                          {dev.name}
+                        </h3>
+                        <p className="mt-1 text-xs sm:text-sm font-medium text-[var(--primary)]">
+                          {dev.role}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-5 flex-1 text-xs sm:text-sm leading-relaxed text-[var(--muted-foreground)]">
+                      {dev.bio}
+                    </p>
+
+                    <div className="mt-6 flex flex-wrap gap-1.5">
+                      {dev.focusAreas.map((area) => (
+                        <span
+                          key={area}
+                          className="rounded-md border border-[var(--border)] bg-[var(--surface)]/70 px-2.5 py-1 text-[11px] font-medium text-[var(--muted-foreground)]"
+                        >
+                          {area}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 border-t border-[var(--border)] pt-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {dev.githubUrl ? (
+                          <a
+                            href={dev.githubUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--muted)] hover:text-[var(--primary)]"
+                            aria-label={`${dev.name}'s GitHub Profile`}
+                          >
+                            <GithubIcon className="h-3.5 w-3.5" />
+                            <span>GitHub</span>
+                            <ExternalLink size={12} className="text-[var(--muted-foreground)]" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+                            <Shield size={12} className="text-[var(--primary)]" />
+                            RapidAid Core Team
+                          </span>
+                        )}
+                        {dev.linkedinUrl && (
+                          <a
+                            href={dev.linkedinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-all hover:border-[var(--primary)] hover:bg-[var(--muted)] hover:text-[var(--primary)]"
+                            aria-label={`${dev.name}'s LinkedIn Profile`}
+                          >
+                            <LinkedinIcon className="h-3.5 w-3.5" />
+                            <span>LinkedIn</span>
+                            <ExternalLink size={12} className="text-[var(--muted-foreground)]" />
+                          </a>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--muted-foreground)]">
+                        Platform Co-Creator
+                      </span>
+                    </div>
+                  </Card>
+                </RevealItem>
+              ))}
+            </RevealGroup>
           </div>
         </section>
 

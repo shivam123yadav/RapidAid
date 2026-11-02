@@ -142,6 +142,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/developers" element={<LandingPage defaultHash="#developers" />} />
           <Route path="/login" element={<Suspense fallback={<PageLoader />}><LoginPageLazy /></Suspense>} />
           {/* Demo persona gallery. Separate from /login so "View demo roles" never
               lands on the sign-in form itself. Each card returns to /login with
