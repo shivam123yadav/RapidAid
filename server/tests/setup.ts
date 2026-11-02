@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { IdempotencyKey } from '../src/models/IdempotencyKey.js';
 
 export const AUTHORIZED_PHASE1_TEST_DB = 'rapidaid_phase1_test';
 export const AUTHORIZED_PHASE1_TEST_HOST = '127.0.0.1';
@@ -140,6 +141,28 @@ export function useTestDatabase(seed: () => Promise<void>, storageDir?: string):
     }
     assertSafeTestDatabase(mongoose.connection);
     await mongoose.connection.dropDatabase();
+
+    // Re-verify safe database and local loopback connection
+    assertSafeTestDatabase(mongoose.connection);
+    const host = mongoose.connection.host;
+    if (host && host !== AUTHORIZED_PHASE1_TEST_HOST && host !== 'localhost') {
+      throw new Error(`CRITICAL DATABASE SAFETY ABORT: Connected host '${host}' is not authorized local loopback.`);
+    }
+
+    // Safety check: confirm no duplicate { key, scope, endpoint } combinations exist
+    const duplicates = await IdempotencyKey.aggregate([
+      { $group: { _id: { key: '$key', scope: '$scope', endpoint: '$endpoint' }, count: { $sum: 1 } } },
+      { $match: { count: { $gt: 1 } } }
+    ]);
+    if (duplicates.length > 0) {
+      throw new Error(
+        `CRITICAL SAFETY CHECK FAILED: Found duplicate { key, scope, endpoint } combinations before creating unique index: ${JSON.stringify(duplicates)}`
+      );
+    }
+
+    // Restore declared indexes on IdempotencyKey before tests/seed execute
+    await IdempotencyKey.createIndexes();
+
     await seed();
   });
 
