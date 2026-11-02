@@ -28,24 +28,14 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
   const text = normalized.toLowerCase();
   const extracted: ExtractedData = {};
 
-  // ── Incident type (first matching rule wins; most specific first) ────
+  // ── Incident type (first matching rule wins; prioritized by event context) ────
   const rules: [IncidentType, RegExp][] = [
-    [
-      'CARDIAC_ARREST',
-      /\b(cardiac|heart attack|pulse|cpr|collapsed|unconscious|behosh|behush|dil\s*ka\s*d[ao]ura|dilka\s*dora)\b|हार्ट\s*अटैक|दिल\s*का\s*दौरा|बेहोश|बेहोशी|अचेत/i,
-    ],
-    [
-      'RESPIRATORY_DISTRESS',
-      /\b(respiratory|breathing|breathless|breath|asthma|suffocat|choking|inhalation|sans\s*l[ea]hne|sans\s*lene|takleev|takleef)\b|सांस\s*लेने|सांस\s*फूल|दम\s*घुट/i,
-    ],
+    // 1. Explicit Road Accidents & Vehicle Collisions (High Priority context)
     [
       'VEHICLE_COLLISION',
-      /\b(crash|collision|hit|accident|rear-ended|rammed|smashed|durgaatna|durghatna|durhath|sadak\s*durghatna|takkar|palat)\b|पलट|दुर्घटना|सड़क\s*दुर्घटना|टक्कर|एक्सीडेंट/i,
+      /\b(crash|collision|collided|hit|accident|road\s*accident|traffic\s*accident|vehicle\s*accident|rear-ended|rammed|smashed|run\s*over|overturned|skidded|durgaatna|durghatna|durhath|sadak\s*durghatna|takkar|palat|gadi\s*takrayi|car\s*takkar)\b|पलट|दुर्घटना|सड़क\s*दुर्घटना|टक्कर|एक्सीडेंट/i,
     ],
-    [
-      'STRUCTURAL_COLLAPSE',
-      /\b(collapse|collapsed building|cave.?in|debris|rubble)\b/i,
-    ],
+    // 2. High-Severity Catastrophic Events
     [
       'MASS_CASUALTY',
       /\b(mass casualty|multiple casualties|many injured|many wounded|stampede)\b/i,
@@ -54,21 +44,18 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
       'EXPLOSION',
       /\b(explosion|exploded|blast|bomb|detonat)\b/i,
     ],
+    // 3. Explicit Medical Emergencies (Explicit cardiac arrest indicators required)
     [
-      'GAS_LEAK',
-      /\b(gas leak|leaking gas|gas smell|smell of gas|lpg|carbon monoxide)\b/i,
+      'CARDIAC_ARREST',
+      /\b(cardiac(?:\s*arrest)?|heart\s*attack|chest\s*pain|cpr|no\s*pulse|stopped\s*pulse|without\s*pulse|pulse\s*(?:ruk|nahi)|dil\s*ka\s*d[ao]ura|dilka\s*dora)\b|हार्ट\s*अटैक|दिल\s*का\s*दौरा|सीने\s*में\s*दर्द|नब्ज\s*नहीं/i,
     ],
     [
       'FIRE',
       /\b(fire|flames|burning|smoke|blaze|aag\b|aag\s*lag)\b|धुआं|आग|जल\s*रहा/i,
     ],
     [
-      'ELECTROCUTION',
-      /\b(electrocut|electric shock|live wire|high.?voltage)\b/i,
-    ],
-    [
-      'OBSTETRIC_EMERGENCY',
-      /\b(pregnant|pregnancy|labour|labor|childbirth|contractions|water broke)\b/i,
+      'STRUCTURAL_COLLAPSE',
+      /\b(collapsed\s*building|building\s*collaps|structural\s*collaps|bridge\s*collaps|roof\s*collaps|wall\s*collaps|cave.?in|debris|rubble)\b|इमारत\s*गिर|दीवार\s*गिर|मलबा/i,
     ],
     [
       'STROKE',
@@ -79,6 +66,10 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
       /\b(seizure|convuls|epilep|fits)\b/i,
     ],
     [
+      'OBSTETRIC_EMERGENCY',
+      /\b(pregnant|pregnancy|labour|labor|childbirth|contractions|water broke)\b/i,
+    ],
+    [
       'POISONING',
       /\b(poison|poisoning|overdose|swallowed|toxic|pesticide|snakebite)\b/i,
     ],
@@ -87,12 +78,25 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
       /\b(drown|drowning|underwater|water)\b/i,
     ],
     [
-      'BURN',
-      /\b(burn|burns|scald|scalded)\b/i,
+      'ELECTROCUTION',
+      /\b(electrocut|electric shock|live wire|high.?voltage)\b/i,
+    ],
+    [
+      'GAS_LEAK',
+      /\b(gas leak|leaking gas|gas smell|smell of gas|lpg|carbon monoxide)\b/i,
     ],
     [
       'ASSAULT',
       /\b(stab|stabbed|gunshot|shot|assault|attacked|knife|machete)\b/i,
+    ],
+    // 4. Secondary Symptom / Trauma Emergencies
+    [
+      'RESPIRATORY_DISTRESS',
+      /\b(respiratory|breathing|breathless|breath|asthma|suffocat|choking|inhalation|sans\s*l[ea]hne|sans\s*lene|takleev|takleef)\b|सांस\s*लेने|सांस\s*फूल|दम\s*घुट/i,
+    ],
+    [
+      'BURN',
+      /\b(burn|burns|scald|scalded)\b/i,
     ],
     [
       'FALL_INJURY',
@@ -100,7 +104,7 @@ export function extractFromTranscript(transcript: string): ExtractionResult {
     ],
     [
       'MEDICAL_EMERGENCY',
-      /\b(head\s*injury|chot|ghayal|ghyal|ghaial|trauma|bleeding\s*heavily|bleeding|chest pain|allergic|vomiting|fever|unwell|unconsciousness|khoon|dard)\b|गंभीर\s*चोट|सिर\s*में\s*चोट|रक्तस्राव|दर्द|खून/i,
+      /\b(head\s*injury|chot|ghayal|ghyal|ghaial|trauma|bleeding\s*heavily|bleeding|allergic|vomiting|fever|unwell|unconsciousness|unconscious|fainted|collapsed|not\s*responding|behosh|behush|khoon|dard)\b|गंभीर\s*चोट|सिर\s*में\s*चोट|रक्तस्राव|दर्द|खून|बेहोश|बेहोशी|अचेत/i,
     ],
   ];
   for (const [type, re] of rules) {

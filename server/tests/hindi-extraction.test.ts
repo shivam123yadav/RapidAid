@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   devanagariToRomanized,
-  normalizePhoneticTokens,
   detectGwaliorLocation,
   normalizeExtractionText,
   calculateNormalizedErrorRates,
@@ -167,6 +166,94 @@ describe('Phase 2: Hindi & Romanized Hindi Emergency Understanding', () => {
       expect(info.priority).toBe('HIGH');
       expect(info.originalTranscript).toBe(input);
       expect(info.normalizedExtractionText).toContain('vehicle collision');
+    });
+  });
+
+  describe('6. Emergency classification regressions (Accident priority, Unconsciousness & Cardiac separation)', () => {
+    it('correctly classifies English road accident with unconscious casualty as VEHICLE_COLLISION (CRITICAL)', () => {
+      const sentence = 'There is an accident near Maharaj Bada. Two people are injured. One person is unconscious and needs help.';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('VEHICLE_COLLISION');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.injuredPeople).toBe(2);
+      expect(info.spokenLocation).toContain('Maharaj Bada');
+      expect(info.city).toBe('Gwalior');
+      expect(info.dispatchHints).toContain('unconscious');
+    });
+
+    it('does not classify English unconsciousness alone as cardiac arrest', () => {
+      const sentence = 'A person is unconscious on the street near Phool Bagh.';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('MEDICAL_EMERGENCY');
+      expect(info.emergencyType).not.toBe('CARDIAC_ARREST');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.spokenLocation).toContain('Phool Bagh');
+    });
+
+    it('requires explicit cardiac indicators for CARDIAC_ARREST in English', () => {
+      const sentence = 'An elderly man collapsed with heart attack and chest pain near City Center.';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('CARDIAC_ARREST');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.spokenLocation).toContain('City Center');
+    });
+
+    it('correctly classifies Hindi road accident with unconscious casualty as VEHICLE_COLLISION (CRITICAL)', () => {
+      const sentence = 'महाराज बाड़ा के पास एक्सीडेंट हो गया है। दो लोग घायल हैं और एक व्यक्ति बेहोश है।';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('VEHICLE_COLLISION');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.injuredPeople).toBe(2);
+      expect(info.spokenLocation).toContain('Maharaj Bada');
+      expect(info.city).toBe('Gwalior');
+    });
+
+    it('does not classify Hindi unconsciousness alone as cardiac arrest', () => {
+      const sentence = 'फूल बाग के पास एक व्यक्ति बेहोश पड़ा है, तुरंत मदद चाहिए';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('MEDICAL_EMERGENCY');
+      expect(info.emergencyType).not.toBe('CARDIAC_ARREST');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.spokenLocation).toContain('Phool Bagh');
+    });
+
+    it('correctly classifies Hinglish road accident with unconscious casualty as VEHICLE_COLLISION (CRITICAL)', () => {
+      const sentence = 'Maharaj Bada ke paas accident ho gaya hai. Do log ghayal hain aur ek vyakti behosh hai.';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('VEHICLE_COLLISION');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.injuredPeople).toBe(2);
+      expect(info.spokenLocation).toContain('Maharaj Bada');
+      expect(info.city).toBe('Gwalior');
+    });
+
+    it('does not classify Hinglish unconsciousness alone as cardiac arrest', () => {
+      const sentence = 'Phool Bagh ke paas ek aadmi behosh pada hai, jaldi ambulance bhejo';
+      const info = extractEmergencyInformation(sentence);
+
+      expect(info.emergencyType).toBe('MEDICAL_EMERGENCY');
+      expect(info.emergencyType).not.toBe('CARDIAC_ARREST');
+      expect(info.severity).toBe('CRITICAL');
+      expect(info.priority).toBe('CRITICAL');
+      expect(info.spokenLocation).toContain('Phool Bagh');
+    });
+
+    it('ensures ambiguous cases remain subject to human review as OTHER', () => {
+      const ambiguous = extractEmergencyInformation('Hello koi hai kya, urgently baat karni hai kuch problem hai');
+      expect(ambiguous.emergencyType).toBe('OTHER');
+      expect(ambiguous.confidence).toBeLessThan(70);
     });
   });
 });
