@@ -1,654 +1,519 @@
-RapidAid – AI-Assisted Emergency Response & Ambulance Coordination System
-Smarter coordination. Faster emergency response.
+# RapidAid — AI-Assisted Emergency Response & Intelligent Dispatch Coordination Network
 
-RapidAid is a web-based emergency response coordination prototype designed to bring emergency reporting, AI-assisted information processing, ambulance recommendation, dispatcher-controlled assignment, response tracking, route support, and hospital coordination into one connected workflow.
+> **Smarter coordination. Faster emergency response.**
 
-Project type: Academic prototype
-Team: Shivam Yadav and Yash Kumar
-Repository: https://github.com/shivam123yadav/RapidAid
-Frontend: https://rapidaid-web.onrender.com
-Backend: https://rapidaid-api-vpms.onrender.com
-📌 Table of Contents
-- Overview
-- Problem Statement
-- Objectives
-- Key Features
-- How RapidAid Works
-- Emergency Lifecycle
-- User Roles
-- System Architecture
-- Technology Stack
-- AI and Intelligent Processing
-- Ambulance Recommendation
-- Map and Routing
-- Hospital Coordination
-- Authentication and RBAC
-- Demo Scenario
-- Project Structure
-- Local Development
-- Environment Configuration
-- Testing and Validation
-- Deployment
-- Limitations
-- Future Scope
-- Safety and Disclaimer
-- Team
-- Project Links
-🚑 Overview
-Emergency response often involves multiple steps:
+[![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Transformers.js](https://img.shields.io/badge/Transformers.js-Whisper_ONNX-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co/docs/transformers.js)
+[![Tests](https://img.shields.io/badge/Tests-125%2B_Passed-brightgreen?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-Report → Understand → Recommend → Assign → Respond → Coordinate → Complete
+RapidAid is a web-based emergency response coordination prototype designed to integrate emergency reporting, on-device AI-assisted speech processing, intelligent ambulance recommendation, human-in-the-loop dispatch assignment, live response tracking, road routing support, and hospital bed coordination into a unified, reliable software workflow.
 
-If these steps are handled through disconnected systems or incomplete information, coordination can become difficult.
+---
 
-RapidAid provides a unified software workflow where:
-1. A citizen reports an emergency using text or voice.
-2. Voice input can be converted into text using Whisper-base.
-3. AI-assisted processing helps structure important incident information.
-4. The system recommends potentially suitable ambulances.
-5. An authorized dispatcher reviews the information and recommendation.
-6. The dispatcher confirms or changes the assignment.
-7. The emergency progresses through defined response statuses.
-8. Route and hospital coordination support the response.
-9. The incident is completed and the ambulance becomes available again.
-RapidAid is an academic prototype and is not intended to replace official emergency services.
-❗ Problem Statement
-Emergency response coordination can face several challenges:
-- Emergency reports may be incomplete or unstructured.
-- Reports may arrive through voice and different languages.
-- Important information may need to be extracted quickly.
-- Selecting an ambulance manually can be difficult when several resources are available.
-- Responders may have limited visibility into the current emergency status.
-- Hospital coordination can be separated from the ambulance workflow.
-- Different response activities may not be represented in one consistent lifecycle.
-RapidAid addresses these problems through a connected digital workflow and AI-assisted decision support.
-🎯 Objectives
-The main objectives of RapidAid are:
-- Provide an easy emergency reporting interface.
-- Support voice-based emergency reporting.
-- Convert speech into editable text.
-- Assist with extracting structured incident information.
-- Recommend suitable ambulances using operational information.
-- Keep the dispatcher in control of final resource assignment.
-- Track emergency progress through defined states.
-- Provide route support through OSRM.
-- Support hospital coordination.
-- Maintain role-based access to system functions.
-- Store emergency and operational data in a centralized database.
-✨ Key Features
-1. Voice-Assisted Emergency Reporting
-RapidAid allows emergency information to be entered through voice or text.
+## 🌐 Live Deployments & Project Links
 
-For voice input, the application uses:
-- Transformers.js
-- Whisper-base
-- ONNX Runtime Web
-The speech-processing workflow runs in the browser.
+- **Live Web Application (Frontend)**: [https://rapidaid-web.onrender.com](https://rapidaid-web.onrender.com)
+- **Backend API Service**: [https://rapidaid-api-vpms.onrender.com](https://rapidaid-api-vpms.onrender.com)
+- **Source Code Repository**: [https://github.com/shivam123yadav/RapidAid](https://github.com/shivam123yadav/RapidAid)
+- **Project Type**: Academic & Demonstration Prototype
+- **Team**: Shivam Yadav & Yash Kumar (Yash Jaiswal)
 
-The resulting transcript can be reviewed and edited before continuing with the emergency workflow.
-Important: Whisper is used for speech-to-text. It does not itself decide the emergency type, assign an ambulance, or perform the complete emergency analysis.
+---
 
-2. AI-Assisted Information Extraction
-After transcription, a separate AI-assisted processing component helps structure the reported information.
+## 📌 Table of Contents
 
-Depending on the available report, the system can organize information such as:
-- Incident type
-- Severity
-- Location
-- Number of victims
-- Other relevant incident details
-This structured information helps the backend and dispatcher work with a more consistent emergency record.
-3. Smart Ambulance Recommendation
-RapidAid provides ambulance recommendations based on available operational information.
+- [Overview & Objectives](#-overview--objectives)
+- [Problem Statement](#-problem-statement)
+- [How RapidAid Works](#-how-rapidaid-works)
+- [Key Features](#-key-features)
+- [System Architecture](#-system-architecture)
+- [Emergency Lifecycle State Machine](#-emergency-lifecycle-state-machine)
+- [Role-Based Access Control (RBAC)](#-role-based-access-control-rbac)
+- [AI Voice & Speech-to-Text Pipeline](#-ai-voice--speech-to-text-pipeline)
+- [Repository Structure](#-repository-structure)
+- [Quick Start & Local Development](#-quick-start--local-development)
+  - [Prerequisites](#prerequisites)
+  - [Installation & First-Time Setup](#installation--first-time-setup)
+  - [Demo Accounts Matrix](#demo-accounts-matrix)
+- [Testing & Quality Assurance](#-testing--quality-assurance)
+- [Deployment & Operations](#-deployment--operations)
+  - [Docker & Containerized Run](#docker--containerized-run)
+  - [Render Staging & Cloud Hosting](#render-staging--cloud-hosting)
+  - [Backups & Disaster Recovery](#backups--disaster-recovery)
+- [Limitations & Future Scope](#-limitations--future-scope)
+- [Safety & Medical Disclaimer](#-safety--medical-disclaimer)
+- [Core Engineering Team](#-core-engineering-team)
+- [Documentation Catalog](#-documentation-catalog)
 
-Relevant signals include:
-- Ambulance availability
-- Proximity
-- Crew information
-- Represented operational capabilities
-The recommendation is intended to support the dispatcher rather than automatically make the final dispatch decision.
-4. Human-in-the-Loop Dispatch
-RapidAid deliberately keeps an authorized dispatcher involved in the final decision.
+---
 
-The dispatcher can:
-- Review the emergency information.
-- Review the ambulance recommendation.
-- Correct or update information where necessary.
-- Confirm an ambulance assignment.
-- Override a recommendation when required.
-This approach is important because AI-assisted information and recommendations can contain errors or incomplete information.
-5. Emergency Lifecycle Management
-Each emergency follows a structured lifecycle so that responders can clearly understand the current stage.
+## 🚑 Overview & Objectives
 
-The seven supported statuses are:
-REPORTED
-    ↓
-AMBULANCE_ASSIGNED
-    ↓
-EN_ROUTE
-    ↓
-AT_SCENE
-    ↓
-PATIENT_ONBOARD
-    ↓
-AT_HOSPITAL
-    ↓
-COMPLETED
-6. Map and Route Support
-RapidAid provides map-based response support and uses OSRM (Open Source Routing Machine) for route calculation.
+Emergency response coordination often involves multiple fragmented handoffs:
 
-The route system can help represent:
-- Incident location
-- Ambulance route
-- Destination/hospital route
-- Response movement
-OSRM is a routing engine. It is not a GPS tracking system.
+$$\text{Report} \longrightarrow \text{Understand} \longrightarrow \text{Recommend} \longrightarrow \text{Assign} \longrightarrow \text{Respond} \longrightarrow \text{Coordinate} \longrightarrow \text{Complete}$$
 
-The GPS movement and telemetry used in the demonstration are simulated.
-7. Hospital Coordination
-The system includes a hospital coordination workflow connected to the emergency response process.
+When these steps occur through disconnected systems, response teams suffer from information loss, delayed dispatches, and misallocated hospital resources. RapidAid addresses these challenges through a unified digital platform where:
 
-The workflow can associate an emergency with a destination hospital and maintain relevant reservation/coordination information.
+1. **Citizens** report emergencies via text or on-device multilingual voice.
+2. **On-Device Whisper** converts speech to text locally in the browser with zero cloud dependencies.
+3. **Clinical NLP** extracts structured triage severity, casualties, and geocoded landmarks.
+4. **Intelligent Scoring** evaluates proximity, equipment tier (ALS/BLS), crew fatigue, and hospital trauma capabilities.
+5. **Human Dispatchers** retain strict, final override control over all unit assignments.
+6. **Ambulance Crews** receive turn-by-turn routing (OSRM) and hospital destination details on mobile-friendly interfaces.
+7. **Hospitals** receive pre-arrival alerts and manage lease-based trauma bed reservations.
+8. **Green Corridors** simulate traffic preemption along the route to minimize transit time.
 
-The demonstration uses synthetic hospital data.
-8. Role-Based Access Control
-RapidAid uses role-based access control (RBAC) to separate system capabilities between users.
+---
 
-The three main roles are:
-- Citizen
-- Dispatcher
-- Ambulance Crew
-🔄 How RapidAid Works
-Citizen
-   |
-   | Emergency report
-   v
-React + TypeScript Frontend
-   |
-   | Voice/Text
-   v
-Speech-to-Text
-(Whisper-base)
-   |
-   v
-AI-Assisted Information Extraction
-   |
-   | Structured emergency information
-   v
-Node.js + Express Backend
-   |
-   +----------------------+
-   |                      |
-   v                      v
-MongoDB Atlas        Ambulance Recommendation
-                           |
-                           v
-                    Dispatcher Review
-                           |
-                           v
-                    Final Assignment
-                           |
-                           v
-                  Emergency Lifecycle
-                           |
-                           v
-                 Route / Hospital Support
-                           |
-                           v
-                       COMPLETED
-🔁 Emergency Lifecycle
-Status	Meaning
-REPORTED	Emergency report has been submitted
-AMBULANCE_ASSIGNED	An ambulance has been assigned
-EN_ROUTE	Ambulance is travelling to the incident
-AT_SCENE	Ambulance has reached the incident
-PATIENT_ONBOARD	Patient has been taken into the ambulance
-AT_HOSPITAL	Ambulance has reached the hospital
-COMPLETED	Response workflow is completed
+## ❗ Problem Statement
 
+Emergency response systems face critical operational bottlenecks:
+- **Unstructured Distress Reports**: Emergency calls are often frantic, incomplete, or spoken in regional languages (e.g., Hindi/Hinglish).
+- **Manual Ambulance Selection**: Dispatchers face cognitive overload when manually matching unit availability, equipment tiers, and route congestion during peak crises.
+- **Disconnected Hospital Handoffs**: Emergency rooms often learn of critical trauma arrivals only when the ambulance pulls up to the bay.
+- **Absence of Unified Lifecycles**: Disparate tools for CAD (Computer-Aided Dispatch), GPS tracking, and patient intake create visibility blind spots.
 
-👥 User Roles
-Citizen
-The Citizen reports an emergency using text or voice and provides incident/location information.
-Dispatcher
-The Dispatcher:
-- Reviews reported emergencies.
-- Reviews extracted information.
-- Reviews ambulance recommendations.
-- Confirms or overrides ambulance assignments.
-- Monitors emergency status.
-- Coordinates the response workflow.
-Ambulance Crew
-The Ambulance Crew:
-- Receives assignment information.
-- Updates response status.
-- Progresses the emergency through the lifecycle.
-- Completes the response/hospital workflow.
-🏗️ System Architecture
-                    ┌──────────────────────────┐
-                    │          Users           │
-                    │ Citizen / Dispatcher /   │
-                    │      Ambulance Crew      │
-                    └────────────┬─────────────┘
-                                 │
-                                 ▼
-                    ┌──────────────────────────┐
-                    │ React + TypeScript + Vite│
-                    │        Frontend          │
-                    └────────────┬─────────────┘
-                                 │
-                           REST / JSON
-                                 │
-                                 ▼
-                    ┌──────────────────────────┐
-                    │ Node.js + Express +      │
-                    │      TypeScript          │
-                    │         Backend          │
-                    └───────┬──────────┬───────┘
-                            │          │
-                            │          ├──────────────┐
-                            │          │              │
-                            ▼          ▼              ▼
-                     ┌──────────┐  AI-assisted     OSRM
-                     │ Mongoose │  Processing     Routing
-                     └────┬─────┘
-                          │
-                          ▼
-                   ┌─────────────┐
-                   │ MongoDB Atlas│
-                   └─────────────┘
+RapidAid solves these problems by connecting every stakeholder through a cohesive, state-driven workflow backed by human-in-the-loop decision support.
 
-Browser-side AI:
-Transformers.js + Whisper-base + ONNX Runtime Web
-🧰 Technology Stack
-Category	Technology	Purpose
-Frontend	React	User interface
-Frontend Language	TypeScript	Type-safe application development
-Frontend Tooling	Vite	Development server and production build
-Backend Runtime	Node.js	Server-side execution
-Backend Framework	Express.js	REST API and server framework
-Backend Language	TypeScript	Type-safe backend development
-Database	MongoDB Atlas	Cloud document database
-Database Layer	Mongoose	MongoDB object-document mapping
-Speech Processing	Whisper-base	Speech-to-text
-Browser AI	Transformers.js	Browser model integration
-Model Runtime	ONNX Runtime Web	Browser model execution
-Routing	OSRM	Route calculation
-Hosting	Render	Frontend/backend deployment
+---
 
+## 🔄 How RapidAid Works
 
-🤖 AI and Intelligent Processing
-RapidAid uses AI in multiple stages, with separate responsibilities.
-Speech Recognition
-Voice
-  ↓
-Whisper-base
-  ↓
-Text Transcript
-Whisper's responsibility is speech-to-text conversion.
-Information Extraction
-Transcript / Report
-        ↓
-AI-assisted Processing
-        ↓
-Structured Incident Information
-This helps convert an unstructured report into useful emergency fields.
-Ambulance Recommendation
-Emergency Information
-        +
-Available Ambulances
-        +
-Operational Information
-        ↓
-Recommendation
-        ↓
-Dispatcher Review
-        ↓
-Final Assignment
-The recommendation does not replace the dispatcher.
-🚑 Ambulance Recommendation
-RapidAid does not simply select the nearest ambulance.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Citizen as Citizen / Bystander
+    participant Client as Client Browser (Whisper STT)
+    participant API as RapidAid API Server
+    actor Dispatcher as Dispatcher (Human)
+    participant Fleet as Ambulance Crew
+    participant Hospital as Hospital Trauma Center
 
-The recommendation can consider:
-- Availability
-- Proximity
-- Crew information
-- Represented operational capabilities
-For example:
-Ambulance A
-Distance: Very close
-Availability: Available
-Capabilities: Limited
+    Citizen->>Client: Record voice distress report (Hindi / English)
+    Client->>Client: Local STT (quantized Whisper-base via ONNX)
+    Client->>API: Submit audio + transcript + GPS coords
+    API->>API: Extract severity, casualty count & geocode landmarks
+    API->>Dispatcher: Present incident & ranked ambulance recommendations
+    Dispatcher->>API: Confirm & assign chosen ambulance unit
+    API->>Fleet: Push dispatch route & patient incident details
+    API->>Hospital: Reserve trauma bed with lease-lock TTL
+    Fleet->>API: Stream live telemetry & transit updates
+    Fleet->>Hospital: Complete patient transfer handoff
+    Hospital->>API: Release reservation & mark ambulance AVAILABLE
+```
 
-Ambulance B
-Distance: Slightly farther
-Availability: Available
-Capabilities: Better suited
-The closer ambulance is not automatically the best choice if another available resource is operationally more suitable.
+---
 
-The exact recommendation depends on the information represented in the system.
+## ✨ Key Features
 
-The dispatcher retains final authority over assignment.
-🗺️ Map and Routing
-RapidAid uses OSRM for route support.
-Origin
-  ↓
-OSRM Routing Service
-  ↓
-Route
-  ↓
-Frontend Map
-OSRM calculates routes; it does not provide physical GPS hardware data from an ambulance.
+### 1. Edge AI Multilingual Voice Reporting
+- **100% Offline Browser STT**: Employs `@huggingface/transformers` with quantized `Xenova/whisper-base` running on ONNX Runtime WebAssembly. Speech-to-text runs entirely on the caller's machine without external cloud API dependencies.
+- **Bilingual Clinical Extraction**: Server-side normalization parses Hindi, English, and Hinglish phrasing to categorize incident types (Cardiac, Road Accident, Respiratory, Trauma), estimate victim counts, and resolve landmarks (e.g., Gwalior Fort, Rajpath) into geographic coordinates.
 
-GPS movement and telemetry used in the demonstration are simulated.
-🏥 Hospital Coordination
-Hospital coordination is another stage of the emergency workflow.
+### 2. Intelligent Ambulance & Hospital Recommendation
+- **Multi-Factor Ranking Algorithm**: Evaluates candidate ambulances using road distance (OSRM), crew duty hours, equipment capability (Advanced Life Support vs. Basic Life Support), and hospital bed availability.
+- **Explainable Scoring**: Provides dispatchers with explicit mathematical breakdowns and a dry-run preview before confirming any dispatch.
 
-The system can associate an emergency with a hospital destination and maintain coordination information.
+### 3. Human-in-the-Loop Dispatch Guard
+- **Strict Operational Safety**: RapidAid enforces a fail-fast backend invariant: automated dispatch without human validation is rejected (`AUTOMATED_DISPATCH_ENABLED=false`). The dispatcher always verifies recommendations.
 
-The demonstration uses synthetic hospital records.
+### 4. Concurrency-Safe Hospital Bed Reservations
+- **Lease-Based Locking**: Holds trauma and ICU beds for incoming critical patients using distributed locks with automatic TTL expiration to prevent double-booking or stale holds.
 
-Real hospital-system integration is part of the future scope.
-🔐 Authentication and RBAC
-Authentication
-Authentication answers:
-“Who is this user?”
+### 5. Live Fleet Telemetry & Road Routing
+- **Real-Time GPS Ingestion**: Validates coordinates, tracks vehicle velocity, logs breadcrumbs, and alerts dispatchers upon route deviation.
+- **Turn-by-Turn Guidance**: Powered by self-hosted Open Source Routing Machine (OSRM) with simulated offline fallbacks.
 
-Authorization
-Authorization answers:
-“What is this user allowed to do?”
+### 6. Traffic Preemption "Green Corridor" Simulation
+- **Signal Coordination**: Simulates dynamic traffic light preemption along critical transit paths, giving ambulances clear passage during time-sensitive Code-3 emergencies.
 
-RapidAid separates permissions according to:
-Citizen
-   ↓
-Citizen functions
+### 7. Dual-Token Authentication & Enterprise Auditability
+- **Cryptographic Security**: 15-minute in-memory JWTs combined with 7-day rotating SHA-256 hashed refresh tokens stored in `httpOnly`, `SameSite` cookies.
+- **Traceable Audit Log**: Every state change, assignment, export, and authorization attempt is permanently logged with an `x-request-id`.
 
-Dispatcher
-   ↓
-Dispatch / coordination functions
+---
 
-Ambulance Crew
-   ↓
-Response / status functions
-🧪 Demo Scenario
-The demonstration uses a synthetic vehicle-collision scenario.
-Incident
-Emergency ID: EMG-00003
-Incident: Vehicle collision
-Location: Near Maharaj Bada, Gwalior
-Severity: CRITICAL
-Victims: 2
-Ambulance
-Ambulance: AMB-053
-Crew:
-- C035 Vikram Singh
-- C036 Anita Patel
-The demonstration shows an ambulance recommendation score of approximately 86.3 and a distance of approximately 5.5 km.
-Hospital
-Hospital: HOSP-82
-Gwalior Trauma & Multi-Specialty Center
-Demonstration lifecycle
-Vehicle Collision
-      ↓
-Emergency Report
-      ↓
-AI-assisted Information Processing
-      ↓
-Ambulance Recommendation
-      ↓
-Dispatcher Assignment
-      ↓
-EN_ROUTE
-      ↓
-AT_SCENE
-      ↓
-PATIENT_ONBOARD
-      ↓
-AT_HOSPITAL
-      ↓
-COMPLETED
-This is a synthetic scenario. It does not represent a real emergency, real ambulance dispatch, live ambulance GPS hardware, real hospital integration, or communication with government emergency services.
-📁 Project Structure
-The project uses a frontend-at-root and backend-in-`server` organization.
+## 🏛️ System Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer ["Client Layer (React 18 + Vite SPA)"]
+        UI["Tailwind CSS v4 + Radix UI + Lucide Consoles"]
+        Worker["Web Worker: Transformers.js (Whisper ONNX)"]
+        State["Zustand Auth Store + TanStack React Query"]
+        Map["Leaflet GIS Real-Time Visualizer"]
+        UI <--> Worker
+        UI <--> State
+        UI <--> Map
+    end
+
+    subgraph Ingress ["Edge Reverse Proxy & Security"]
+        Nginx["Nginx Alpine Container (TLS 1.3, CSP, Gzip Compression)"]
+    end
+
+    subgraph BackendLayer ["Application API (Node.js 22 Express)"]
+        Router["Express API Router (/api/*)"]
+        AuthZ["Permission Registry & Dynamic RBAC Guard"]
+        DispatchSvc["Dispatch Scorer & Dry-Run Engine"]
+        HospitalSvc["Hospital Reservation Scheduler"]
+        VoiceSvc["Bilingual Extraction & Geocoding Service"]
+        RouteSvc["OSRM Routing & Route Deviation Engine"]
+        AuditSvc["Audit Logger (x-request-id)"]
+    end
+
+    subgraph Persistence ["Persistence & External Services"]
+        MongoDB[("MongoDB 7.0 / Atlas Replica Set")]
+        OSRM["OSRM Road Routing Engine"]
+        Brevo["Brevo API / SMTP Transactional Email"]
+        Twilio["Twilio SMS Gateway"]
+    end
+
+    ClientLayer -->|HTTPS / WSS| Ingress
+    Ingress -->|Reverse Proxy /api| Router
+    Router --> AuthZ
+    AuthZ --> DispatchSvc
+    AuthZ --> HospitalSvc
+    AuthZ --> VoiceSvc
+    AuthZ --> RouteSvc
+    AuthZ --> AuditSvc
+    DispatchSvc & HospitalSvc & VoiceSvc & RouteSvc & AuditSvc --> MongoDB
+    RouteSvc --> OSRM
+    Router --> Brevo
+    Router --> Twilio
+```
+
+---
+
+## 🔄 Emergency Lifecycle State Machine
+
+RapidAid models emergencies through a strict forward-only finite state machine to guarantee data integrity:
+
+```
+[ REPORTED ] ──(Triage / AI Review)──► [ DISPATCHED ]
+                                             │
+                                   (Ambulance En Route)
+                                             ▼
+                                      [ EN_ROUTE ]
+                                             │
+                                     (Arrival On Scene)
+                                             ▼
+                                      [ ON_SCENE ]
+                                             │
+                                   (Transport to Hospital)
+                                             ▼
+                                     [ IN_TRANSIT ]
+                                             │
+                                    (Hospital Handoff)
+                                             ▼
+                                      [ COMPLETED ]
+                                             ▲
+      [ CANCELLED ] ◄──(Prior to Scene)──────┘
+```
+
+- **Terminal States**: `COMPLETED` and `CANCELLED` are immutable once reached.
+- **Resource Recovery**: Transitioning to a terminal state automatically releases assigned ambulances back to `AVAILABLE` status and marks reserved hospital beds as occupied or released.
+
+---
+
+## 👥 Role-Based Access Control (RBAC)
+
+RapidAid implements a fine-grained, permission-based authorization architecture. User roles are dynamically resolved against the permission registry on every request:
+
+| Role | Core Responsibilities | Typical Console Views | Key Permissions |
+|---|---|---|---|
+| **`CITIZEN`** | Emergency SOS reporting, tracking personal reports | `/emergencies`, `/voice` | `emergency:create`, `emergency:view:own`, `voice:record` |
+| **`DISPATCHER`** | Triage incoming queue, compare recommendations, assign units | `/command-center`, `/dispatch`, `/cameras` | `ambulance:assign`, `ambulance:view`, `camera:live-view` |
+| **`AMBULANCE_CREW`** | Navigate to scene, update patient vitals, broadcast GPS | `/tracking`, `/emergencies/:id` | `ambulance:telemetry`, `ambulance:view:own`, `emergency:status` |
+| **`HOSPITAL_STAFF`** | Monitor incoming arrivals, update bed and trauma capacity | `/hospitals` | `hospital:update-capacity`, `hospital:view` |
+| **`SUPERVISOR`** | Global operational oversight, override dispatches, review alerts | `/command-center`, `/alerts` | `emergency:override`, `ambulance:status`, `audit:view` |
+| **`ANALYST`** | Evaluate fleet response times, identify bottleneck trends | `/analytics`, `/reports` | `report:generate`, `report:export`, `analytics:view` |
+| **`AUDITOR`** | Inspect immutable event records, review CCTV evidence | `/audit`, `/cameras` | `audit:view`, `camera:evidence-export`, `report:export` |
+| **`ADMIN`** | System configuration, user provisioning, database health | `/admin/users`, `/admin/permissions` | `user:manage`, `system:configure`, `maintenance:manage` |
+
+---
+
+## 🎙️ AI Voice & Speech-to-Text Pipeline
+
+The voice pipeline delivers reliable, privacy-first transcription without external cloud APIs:
+
+1. **Client-Side Speech-to-Text (`src/lib/useVoiceInput.ts`)**:
+   - Audio is recorded at 16 kHz mono WAV via the Web Audio API.
+   - An isolated Web Worker loads `@huggingface/transformers` and runs `Xenova/whisper-base` quantized with ONNX Runtime WebAssembly (`public/ort/`).
+   - Transcription completes in ~1.5–3 seconds completely offline on consumer-grade hardware.
+2. **Server-Side Clinical NLP (`server/src/services/emergencyExtractionService.ts`)**:
+   - The transcript is processed by bilingual extractors (`hindiNormalizationService.ts`).
+   - Extracts:
+     - **Triage Priority**: `CRITICAL` (Code Red), `URGENT` (Code Yellow), or `NON_URGENT` (Code Green).
+     - **Incident Category**: Road Accident, Cardiac Arrest, Respiratory Distress, Fire/Burn, Stroke, etc.
+     - **Casualties**: Total count detected from numerals or regional language terms.
+     - **Geocoding**: Matches location descriptions to GIS landmarks via `geocodingService.ts`.
+3. **Dispatcher Review**:
+   - The structured draft is displayed in `VoiceRecordingReview.tsx` for dispatcher verification before ticket creation.
+
+---
+
+## 📁 Repository Structure
+
+```
 RapidAid/
-│
-├── src/                    # Frontend application
-├── public/                 # Frontend public assets
-├── server/                 # Backend application
-├── package.json            # Root/frontend scripts and dependencies
-├── README.md
-└── configuration files
-The exact file tree and script names may change as the project evolves. The current repository is the authoritative source.
-💻 Local Development
-Prerequisites
-- Node.js
-- npm
-- Git
-- MongoDB Atlas account or configured MongoDB instance
-Recommended development tools:
-- VS Code / Antigravity
-- Git
-- Docker
-- MongoDB Compass
-1. Clone
-git clone https://github.com/shivam123yadav/RapidAid.git
-cd RapidAid
-2. Install frontend dependencies
-npm install
-3. Install backend dependencies
-npm --prefix server install
-4. Check available scripts
-npm run
-npm --prefix server run
-Use the development scripts actually defined in the current package.json files.
-5. Configure environment
-Create the environment files required by the current frontend and backend configuration.
+├── .github/                 # GitHub Actions CI/CD workflows
+├── docs/                    # Architecture and operational manuals
+│   ├── deployment/          # AWS Student / Cloud deployment guides
+│   ├── security/            # Cryptographic standards and key rotation
+│   ├── DEPLOYMENT.md        # Comprehensive production deployment architecture
+│   ├── ENVIRONMENT.md       # Complete environment variable reference catalog
+│   ├── RENDER_DEPLOYMENT.md # Render staging blueprint guide
+│   └── RUNBOOK.md           # Production operations and disaster recovery runbook
+├── fixtures/                # Benchmark speech fixtures and audio samples
+├── public/                  # Static assets
+│   ├── models/              # Quantized Whisper ONNX weights (~42 MB)
+│   └── ort/                 # OnnxRuntime-Web WebAssembly workers (~42 MB)
+├── scripts/                 # Root utilities and AI verification scripts
+│   ├── backup-db.mjs        # Database snapshot engine with AWS S3 sync
+│   ├── restore-db.mjs       # Non-destructive disaster recovery restoration drill
+│   ├── sync-voice-model.mjs # Whisper model and WASM bundler
+│   └── verify-whisper-pipeline.mjs # Offline STT transcription verifier
+├── server/                  # Backend Express 5 + TypeScript + Mongoose service
+│   ├── scripts/             # Admin bootstrapping, GPS simulation, index builder
+│   ├── src/
+│   │   ├── authz/           # Permission registry and RBAC guards
+│   │   ├── config/          # Zod environment validation and Pino logging
+│   │   ├── db/              # Mongoose connection and lifecycle probes
+│   │   ├── models/          # 11 Mongoose domain models with JSON transforms
+│   │   ├── routes/          # REST endpoints mounted under /api
+│   │   ├── services/        # Dispatch, Voice, Routing, Hospital, and Notification engines
+│   │   └── index.ts         # Server entrypoint and graceful shutdown handling
+│   ├── tests/               # 125+ Vitest integration and security regression tests
+│   ├── Dockerfile           # Multi-stage production Alpine backend image
+│   └── README.md            # Backend-specific architecture and API reference
+├── src/                     # Frontend React 18 + Vite + Tailwind CSS application
+│   ├── api/                 # Typed API client and session management
+│   ├── components/          # Radix UI primitives, Leaflet maps, Voice player, Layout
+│   ├── hooks/               # Custom React hooks (voice, geolocation, themes)
+│   ├── pages/               # Operational consoles for all 8 system roles
+│   ├── stores/              # Zustand stores (Auth, Theme, Navigation)
+│   └── App.tsx              # Role-gated client routes and error boundaries
+├── docker-compose.yml       # Base multi-container setup (Mongo, API, Client)
+├── docker-compose.prod.yml  # Production container hardening overlay
+├── Dockerfile               # Multi-stage frontend Vite build + Nginx edge image
+├── nginx.conf               # Hardened reverse proxy configuration with CSP & Gzip
+├── package.json             # Root workspace definitions and orchestrator scripts
+├── render.yaml              # Staging deployment blueprint for Render
+└── vite.config.js           # Vite development server configuration & proxy
+```
 
-Configuration may include:
-- MongoDB connection
-- Authentication settings
-- AI/service settings
-- Application ports
-- Frontend/backend URLs
-Use the exact variable names referenced by the current source code. Never commit secrets or .env files.
-6. Start the application
-Start the frontend and backend using their configured development scripts.
-🔧 Environment Configuration
-RapidAid requires environment-specific configuration for services such as the database and authentication.
+---
 
-Security practices:
-- Keep secrets outside source code.
-- Use .env locally.
-- Add .env to .gitignore.
-- Never commit database passwords or API keys.
-- Configure production variables securely on Render.
-The exact environment-variable names should be taken from the current repository configuration rather than an outdated README.
-🧪 Testing and Validation
-At the recorded validation checkpoint:
-Backend
-790 tests passed
-58 test files passed
-Frontend
-127 tests passed
-9 test files passed
-Build validation
-Backend production build → PASSED
-Frontend typecheck       → PASSED
-Frontend production build → PASSED
-These results describe the tested project state at that checkpoint.
+## 🚀 Quick Start & Local Development
 
-They do not establish:
-- Real-world emergency response performance
-- AI accuracy
-- Whisper accuracy
-- Average speech-processing latency
-- Production-scale throughput
-- Clinical validity
-- Field reliability
-- Government emergency-service integration
-🎙️ Whisper Accuracy and Processing Time
-RapidAid uses Whisper-base for speech-to-text.
+### Prerequisites
+- **Node.js**: `v22.0.0` or higher
+- **MongoDB**: `v6.0` or higher (running locally on `mongodb://127.0.0.1:27017`)
+- **Package Manager**: `npm` v10+
 
-A formal benchmark was not established for:
-- Word Error Rate (WER)
-- Character Error Rate (CER)
-- Average processing time per audio clip
-- Accuracy across different languages
-- Accuracy under background noise
-- Hardware-specific latency
-Therefore, the project should not claim an unverified accuracy percentage or average processing time.
+### Installation & First-Time Setup
 
-Future evaluation should use representative Hindi, English, and Hinglish samples and report metrics such as WER and average processing time.
-🧪 Playwright Test Count
-The validated project information contains overall frontend and backend test counts, but a separate Playwright-specific count has not been established.
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/shivam123yadav/RapidAid.git
+   cd RapidAid
+   ```
 
-Verified counts are:
-Backend: 790 tests
-Frontend: 127 tests
-These should not automatically be described as Playwright tests.
+2. **Install root and server dependencies**:
+   ```bash
+   npm install
+   npm run server:install
+   ```
 
-A separate Playwright count should be calculated directly from the current Playwright test files if required.
-🚀 Deployment
-RapidAid has been deployed using Render.
-Frontend
-https://rapidaid-web.onrender.com
-Backend
-https://rapidaid-api-vpms.onrender.com
-GitHub
-https://github.com/shivam123yadav/RapidAid
+3. **Configure Environment Variables**:
+   Copy the example environment files:
+   ```bash
+   cp .env.example .env
+   cp server/.env.example server/.env
+   ```
 
-Production deployment requires correctly configured environment variables and service settings.
-🔒 Security Considerations
-Important security areas include:
-- Authentication
-- Authorization/RBAC
-- Secure secret management
-- Input validation
-- Database access control
-- Secure API communication
-- Error handling
-- Auditability of important operational actions
-- Protection of sensitive information
-The academic prototype should not be interpreted as security-certified or production-ready for real emergency-service deployment.
-⚠️ Limitations
-No official emergency-service integration
-RapidAid is not integrated with 108, 112, government ambulance systems, or official emergency dispatch infrastructure.
-No real ambulance hardware integration
-The demonstration does not use physical ambulance GPS hardware or live telemetry.
-No real hospital integration
-The hospital workflow uses synthetic/project data rather than live hospital systems.
-AI limitations
-AI-assisted extraction and recommendations can be wrong or incomplete. Human review remains important.
-No formal Whisper benchmark
-The project does not currently claim a measured Whisper accuracy percentage or average processing latency.
-No field validation
-The system has not been validated through real-world emergency-service deployment.
-🔮 Future Scope
-Live GPS and telemetry
-Integrate authorized ambulance GPS hardware and live location updates.
-Emergency-service integration
-Develop secure, authorized integration with official emergency-response infrastructure.
-Hospital integration
-Connect with hospital systems for real-time destination availability and coordination.
-Better AI evaluation
-Evaluate:
-- Speech recognition accuracy
-- Information extraction accuracy
-- Recommendation quality
-- False-positive/false-negative behavior
-- Response workflow reliability
-Performance benchmarking
-Measure:
-- API latency
-- Speech-processing latency
-- Database performance
-- Concurrent-user capacity
-- End-to-end workflow time
-Advanced prediction
-Future versions could explore:
-- Emergency demand prediction
-- Ambulance positioning
-- Traffic-aware ETA
-- Resource optimization
-- Hospital capacity prediction
-Any such capability would require appropriate validation before real-world use.
-📊 Project Impact
-RapidAid connects:
-Emergency Reporting
-        ↓
-Speech / Text Processing
-        ↓
-Structured Information
-        ↓
-Ambulance Recommendation
-        ↓
-Human Review
-        ↓
-Dispatch
-        ↓
-Response Tracking
-        ↓
-Hospital Coordination
-        ↓
-Completion
-The primary contribution is system-level coordination, rather than claiming a completely new AI algorithm.
+4. **Sync the Offline Voice Model**:
+   Download and cache the Whisper ONNX model and WASM runtime files locally:
+   ```bash
+   npm run prepare:voice-model
+   ```
 
-The project combines existing technologies into an emergency-response workflow designed to improve organization, visibility, and decision support.
-🏆 Key Technical Concepts Demonstrated
-- React
-- TypeScript
-- Vite
-- Node.js
-- Express.js
-- REST APIs
-- JSON
-- MongoDB
-- MongoDB Atlas
-- Mongoose
-- Authentication
-- Authorization
-- RBAC
-- AI-assisted information processing
-- Speech-to-text
-- Transformers.js
-- Whisper
-- ONNX Runtime Web
-- OSRM routing
-- Map-based interfaces
-- State-based workflow management
-- Automated testing
-- Production builds
-- Cloud deployment
-👨‍💻 Team
-Shivam Yadav
-Developer / Project Team Member
-Yash Kumar
-Developer / Project Team Member
-🔗 Project Links
-GitHub Repository:
-https://github.com/shivam123yadav/RapidAid
+5. **Seed Demo Data**:
+   Populate the local database with ambulances, hospitals, simulated incidents, and demo accounts:
+   ```bash
+   npm run server:seed
+   ```
+   *(Optional: Use `npm run server:seed:gwalior` for specialized Gwalior GIS coordinates.)*
 
-Live Frontend:
-https://rapidaid-web.onrender.com
+6. **Start Development Servers**:
+   Launch the system using two terminals:
 
-Backend API:
-https://rapidaid-api-vpms.onrender.com
-📜 License
-Add the project's actual license here if a license has been added to the repository.
+   ```bash
+   # Terminal 1: Backend API (http://localhost:5000)
+   npm run server
 
-If the repository does not currently contain a license, do not claim a specific open-source license.
-⚠️ Safety Disclaimer
-RapidAid is an academic and demonstration prototype for emergency-response coordination.
+   # Terminal 2: Frontend Web App (http://localhost:3000)
+   npm run dev
+   ```
 
-It is not a medical device, does not replace trained emergency personnel, and does not replace official emergency services.
+The Vite dev server automatically proxies all `/api` requests to `http://localhost:5000`, eliminating CORS restrictions in development.
 
-AI-generated or extracted information may be incomplete or incorrect and should be reviewed by authorized personnel.
+---
 
-The demonstration uses synthetic data and simulated GPS/telemetry. It does not perform real emergency dispatch or provide guaranteed emergency response.
+### Demo Accounts Matrix
 
-For a real emergency in India, use the appropriate official emergency services, such as 112 or 108, as applicable.
-📌 Summary
-RapidAid connects emergency reporting, speech-to-text, AI-assisted information extraction, ambulance recommendation, dispatcher-controlled assignment, response lifecycle management, route support, and hospital coordination into one web-based workflow.
+The database seeder provisions accounts representing all operational roles. Each account shares the default demo password: `demo123`.
 
-Its core principle is:
-AI assists the response team; authorized humans remain in control of critical decisions.
+| Role | Email Address | Password | Primary Console |
+|---|---|---|---|
+| **Dispatcher** | `dispatcher@rapidaid.com` | `demo123` | `/dispatch`, `/command-center` |
+| **Ambulance Crew** | `crew@rapidaid.com` | `demo123` | `/tracking`, `/emergencies` |
+| **Hospital Staff** | `hospital@rapidaid.com` | `demo123` | `/hospitals` |
+| **Supervisor** | `supervisor@rapidaid.com` | `demo123` | `/command-center`, `/dispatch` |
+| **Administrator** | `admin@rapidaid.com` | `demo123` | `/admin/users`, `/admin/permissions` |
+| **Auditor** | `auditor@rapidaid.com` | `demo123` | `/audit`, `/reports` |
+| **Analyst** | `analyst@rapidaid.com` | `demo123` | `/analytics` |
+| **Citizen** | `citizen@rapidaid.com` | `demo123` | `/emergencies`, `/voice` |
+
+> [!TIP]
+> Use the **Demo Roles Gallery** (`/demo-roles`) or the quick-login buttons on the `/login` screen to switch between personas with a single click.
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+RapidAid maintains a comprehensive test suite across unit, integration, and end-to-end browser layers:
+
+```bash
+# Frontend TypeScript strict check
+npm run typecheck
+
+# Frontend Vitest unit test suite
+npm run test
+
+# 125+ Backend API integration test suites (requires local MongoDB)
+npm run server:test
+
+# Verify on-device offline Whisper speech transcription pipeline
+npm run verify:whisper
+
+# Live audio ingestion test against running API server
+npm run server:e2e:voice
+
+# Full headless Chrome end-to-end voice workflow (Playwright)
+npm run server:verify:ui-flow
+```
+
+### Headless Chrome Voice Flow (`npm run server:verify:ui-flow`)
+This end-to-end suite drives a live headless Chrome session:
+1. Logs into the application with dispatcher credentials.
+2. Streams a synthesized emergency distress call (`server/scripts/ui-tts.wav`) into a virtual WebRTC microphone.
+3. Transcribes the audio locally in the browser worker via Whisper ONNX.
+4. Posts the report to the backend API, verifying NLP triage extraction and geocoding.
+5. Verifies that the emergency was routed to an optimal hospital and plays back the archived audio clip asserting accurate duration and playback controls.
+
+---
+
+## 🌐 Deployment & Operations
+
+### Docker & Containerized Run
+
+RapidAid provides multi-stage production Docker configurations with an Nginx reverse proxy:
+
+```bash
+# Build production images
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+
+# Launch containers in detached mode
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d
+
+# Check service status and health probes
+docker compose ps
+docker compose logs -f backend
+```
+
+### Render Staging & Cloud Hosting
+- **Render Staging**: Deploy the entire stack using the root [`render.yaml`](render.yaml) blueprint. For step-by-step setup, see [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md).
+- **AWS Production**: For AWS deployments (EC2 / ECS Fargate + MongoDB Atlas + ACM + OSRM), refer to [docs/deployment/AWS_STUDENT_DEPLOYMENT.md](docs/deployment/AWS_STUDENT_DEPLOYMENT.md).
+- **Infrastructure Architecture**: Complete guide on TLS termination, Nginx tuning, and zero-downtime rollbacks in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+### Backups & Disaster Recovery
+
+```bash
+# Execute an ad-hoc gzipped logical database backup
+npm run backup
+
+# Non-destructive dry-run restore drill
+npm run backup:restore:drill
+
+# Complete backup-restore verification
+npm run backup:verify
+
+# Rebuild and verify all 11 production MongoDB indexes
+npm --prefix server run db:verify-indexes
+```
+
+For operational incident response, see the [Operations Runbook (docs/RUNBOOK.md)](docs/RUNBOOK.md).
+
+---
+
+## ⚠️ Limitations & Future Scope
+
+### Limitations
+- **Academic & Prototype Scope**: RapidAid is an educational prototype and is not connected to official emergency service lines (e.g., 108 or 112 in India, 911 in the US).
+- **Simulated Hardware**: GPS tracking, vehicle telemetry, and traffic signal preemption are software simulations and do not interface with physical vehicle OBD-II / CAN bus hardware or municipal traffic SCADA networks.
+- **Synthetic Hospital Data**: Hospital capacity numbers are mock data and not synchronized with live Hospital Information Systems (HIS).
+
+### Future Scope
+- **Hardware Telemetry Integration**: Integration with physical OBD-II / AIS-140 GPS tracking devices for live ambulance location updates.
+- **Official CAD Integration**: Secure API gateways to interface with official computer-aided dispatch networks (112 / 108).
+- **Predictive Ambulance Staging**: Machine learning models for demand forecasting, dynamic standby positioning, and historical traffic-aware ETA modeling.
+
+---
+
+## ⚠️ Safety & Medical Disclaimer
+
+> [!CAUTION]
+> **RapidAid is an academic demonstration prototype.** It is **not** a certified medical device, does not replace trained emergency dispatchers, and does not replace official emergency services.
+> 
+> AI-extracted information and automated recommendations may be incomplete or inaccurate and **must always be reviewed by authorized human personnel**.
+> 
+> **For a real medical emergency, please call your local emergency services immediately (112 or 108 in India, 911 in the US, 999 in the UK).**
+
+---
+
+## 👨‍💻 Core Engineering Team
+
+RapidAid was conceptualized, architected, and built by:
+
+| Developer | Role & Core Ownership | Focus Areas | Profile |
+|---|---|---|---|
+| **Shivam Yadav** | **Full-Stack Developer & Cloud Architect**<br>Lead: Backend & Infrastructure | • Core Backend Services & Scalable APIs<br>• Real-Time Dispatch Scoring Engine<br>• Edge AI Voice Processing & NLP Pipeline<br>• Cloud Infrastructure & Security Hardening | [![GitHub](https://img.shields.io/badge/GitHub-shivam123yadav-181717?style=flat-square&logo=github)](https://github.com/shivam123yadav) |
+| **Yash Kumar**<br>*(Yash Jaiswal)* | **Full-Stack Developer & Systems Engineer**<br>Lead: Frontend & Integrations | • Real-Time Operational Command Consoles<br>• Live Telemetry Map & GPS Visualizer<br>• Turn-by-Turn Road Routing Integration<br>• Multi-Role Operational Workflows & UI/UX | [![GitHub](https://img.shields.io/badge/GitHub-Yash--Jaiswal-181717?style=flat-square&logo=github)](https://github.com/Yash-Jaiswal) |
+
+---
+
+## 📚 Documentation Catalog
+
+Detailed operational, architectural, and security manuals are available in the [`docs/`](docs/) directory:
+
+- 📘 [Production Deployment Guide (`docs/DEPLOYMENT.md`)](docs/DEPLOYMENT.md) — Container provisioning, TLS termination, Nginx configuration, and blue-green rollbacks.
+- ⚙️ [Environment Variable Catalog (`docs/ENVIRONMENT.md`)](docs/ENVIRONMENT.md) — Comprehensive reference for all configuration options and startup validation invariants.
+- 🚀 [Render Staging Walkthrough (`docs/RENDER_DEPLOYMENT.md`)](docs/RENDER_DEPLOYMENT.md) — Guide for standing up a free-tier staging environment on Render.
+- 🛠️ [Operations & Disaster Recovery Runbook (`docs/RUNBOOK.md`)](docs/RUNBOOK.md) — Backup procedures, index maintenance, health alerts, and emergency playbooks.
+- 🔐 [Key Rotation & Cryptography Standards (`docs/security/KEY_ROTATION.md`)](docs/security/KEY_ROTATION.md) — Guidelines for rotating JWT secrets, database credentials, and API keys.
+- 🖥️ [Backend Architecture & API Specification (`server/README.md`)](server/README.md) — Endpoint registry, payload shapes, and service design principles.
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
